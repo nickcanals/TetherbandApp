@@ -80,8 +80,15 @@ struct ContentView: View {
                     TextField("Childs Name...", text: $text)
                         .padding()
                     
-                    Button(action: {self.tryToAdd()},
-                        label: {
+                    Button(action: {
+                        guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
+                            return
+                        }
+                        
+                        let newKid = Child(name: text, inRange: "In Range", wearing: "Bracelet On")
+                        viewModel.kids.append(newKid)
+                        text = ""
+                    }, label: {
                             Text("Add Child")
                                 .bold()
                                 .frame(width: 250,
@@ -101,15 +108,15 @@ struct ContentView: View {
             .navigationTitle("Tetherband App")
         }
     }
-    func tryToAdd() {
-        guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return
-        }
-        
-        let newKid = Child(name: text, inRange: "In Range", wearing: "Bracelet On")
-        viewModel.kids.append(newKid)
-        text = ""
-    }
+    //func tryToAdd() {
+    //    guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
+    //        return
+    //    }
+    //
+    //    let newKid = Child(name: text, inRange: "In Range", wearing: "Bracelet On")
+    //    viewModel.kids.append(newKid)
+    //    text = ""
+    //}
 }
 
 struct ChildRow: View {
@@ -122,7 +129,7 @@ struct ChildRow: View {
             Image(systemName: "chart.bar")
                 .resizable()
                 .scaledToFit()
-                .frame(height: 40)
+                .frame(height: 20)
             Text(name)
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
