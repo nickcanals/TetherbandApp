@@ -26,8 +26,10 @@ class ChildViewModel: ObservableObject {
 struct ContentView: View {
     @State var bleToggle = true
     @State var alarmToggle = false
+    @State var childAddToggle = true
     @StateObject var viewModel = ChildViewModel()
     @State var text = ""
+    @State var color = Color.black
     
     
     var body: some View {
@@ -76,18 +78,14 @@ struct ContentView: View {
                         .padding()
                 }
                 
-                Section(header: Text("ADD NEW CHILD")) {
+                //Color Picker widget, code is below
+                DropDown()
+                
+                Section(header: Text("")) {
                     TextField("Childs Name...", text: $text)
                         .padding()
                     
-                    Button(action: {
-                        guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
-                            return
-                        }
-                        
-                        let newKid = Child(name: text, inRange: "In Range", wearing: "Bracelet On")
-                        viewModel.kids.append(newKid)
-                        text = ""
+                    Button(action: { tryToAdd()
                     }, label: {
                             Text("Add Child")
                                 .bold()
@@ -108,15 +106,19 @@ struct ContentView: View {
             .navigationTitle("Tetherband App")
         }
     }
-    //func tryToAdd() {
+    func tryToAdd() {
     //    guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
     //        return
     //    }
-    //
-    //    let newKid = Child(name: text, inRange: "In Range", wearing: "Bracelet On")
-    //    viewModel.kids.append(newKid)
-    //    text = ""
-    //}
+
+        let newKid = Child(name: text, inRange: "In Range", wearing: "Bracelet On")
+        viewModel.kids.append(newKid)
+        text = ""
+    }
+    
+    func colorChanger() {
+        
+    }
 }
 
 struct ChildRow: View {
@@ -146,8 +148,100 @@ struct ChildRow: View {
     }
 }
 
+struct DropDown : View {
+    @State var expand = false
+    @State var color = Color.black
+    
+    var body : some View {
+        VStack(alignment: .leading, content: {
+            HStack {
+                
+                Text("Color Picker").fontWeight(.heavy).foregroundColor(.white)
+                Image(systemName: expand ? "chevron.up" : "chevron.down").resizable().frame(width: 13, height: 6).foregroundColor(.white)
+                
+            }
+            .frame(width: 250,
+                   height: 50)
+            .cornerRadius(8)
+            .background(color)
+            .onTapGesture(perform: {
+                self.expand.toggle()
+            })
+            
+            if expand {
+                Button(action: { color = Color.orange
+                }, label: {
+                        Text("Orange")
+                            .frame(width: 250,
+                                   height: 30,
+                                   alignment: .center)
+                            .background(Color.orange)
+                            .foregroundColor(Color.white)
+                })
+                
+                Button(action: { color = Color.purple
+                }, label: {
+                        Text("Purple")
+                            .frame(width: 250,
+                                   height: 30,
+                                   alignment: .center)
+                            .foregroundColor(Color.white)
+                            .background(Color.purple)
+                })
+                
+                Button(action: { color = Color.yellow
+                }, label: {
+                        Text("Yellow")
+                            .frame(width: 250,
+                                   height: 30,
+                                   alignment: .center)
+                            .background(Color.yellow)
+                            .foregroundColor(Color.white)
+                })
+                
+                Button(action: { color = Color.red
+                }, label: {
+                        Text("Red")
+                            .frame(width: 250,
+                                   height: 30,
+                                   alignment: .center)
+                            .background(Color.red)
+                            .foregroundColor(Color.white)
+                })
+                
+                Button(action: { color = Color.blue
+                }, label: {
+                        Text("Blue")
+                            .frame(width: 250,
+                                   height: 30,
+                                   alignment: .center)
+                            .background(Color.blue)
+                            .foregroundColor(Color.white)
+                })
+                
+                Button(action: { color = Color.green
+                }, label: {
+                        Text("Green")
+                            .frame(width: 250,
+                                   height: 30,
+                                   alignment: .center)
+                            .background(Color.green)
+                            .foregroundColor(Color.white)
+                })
+            }
+            
+        })
+        .frame(width: 250,height: expand ? 250 : 50)
+        .padding()
+        .cornerRadius(12)
+        .animation(.spring())
+    }
+}
+
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
     }
 }
+
+
