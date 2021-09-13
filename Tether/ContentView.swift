@@ -27,6 +27,7 @@ struct ContentView: View {
     @State var bleToggle = true
     @State var alarmToggle = false
     @State var childAddToggle = true
+    @State var nfcToggle = true
     @StateObject var viewModel = ChildViewModel()
     @State var text = ""
     @State var color = Color.black
@@ -76,6 +77,29 @@ struct ContentView: View {
                 else{
                     Text("ALARMS ARE OFF")
                         .padding()
+                }
+                
+                HStack{
+                    Button(action: {nfcToggle.toggle()},
+                        label: {
+                            Text("NFC Config")
+                                .bold()
+                                .frame(width: 150,
+                                       height: 50,
+                                       alignment: .center)
+                                .background(Color.green)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+                    
+                    if nfcToggle{
+                        Text("NFC Down")
+                            .padding()
+                    }
+                    else{
+                        Text("NFC Searching")
+                            .padding()
+                    }
                 }
                 
                 //Color Picker widget, code is below
