@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreNFC
 
 struct Child: Identifiable {
     var id = UUID()
@@ -31,6 +32,7 @@ struct ContentView: View {
     @StateObject var viewModel = ChildViewModel()
     @State var text = ""
     @State var color = Color.black
+    @State var data = ""
     
     
     var body: some View {
@@ -63,11 +65,9 @@ struct ContentView: View {
                 }
                 if bleToggle{
                     Text("Bluetooth Connected")
-                        .padding()
                 }
                 else{
                     Text("Bluetooth Disconnected")
-                        .padding()
                 }
                 
                 if alarmToggle{
@@ -79,28 +79,12 @@ struct ContentView: View {
                         .padding()
                 }
                 
+                //NFC Config Section with code below
                 HStack{
-                    Button(action: {nfcToggle.toggle()},
-                        label: {
-                            Text("NFC Config")
-                                .bold()
-                                .frame(width: 150,
-                                       height: 50,
-                                       alignment: .center)
-                                .background(Color.green)
-                                .cornerRadius(8)
-                                .foregroundColor(Color.white)
-                    })
-                    
-                    if nfcToggle{
-                        Text("NFC Down")
-                            .padding()
-                    }
-                    else{
-                        Text("NFC Searching")
-                            .padding()
-                    }
-                }
+                    nfcButton(data: self.$data)
+                }.frame(width: 250, height: 50, alignment: /*@START_MENU_TOKEN@*/.center/*@END_MENU_TOKEN@*/).cornerRadius(8)
+                
+                Text(data).padding()
                 
                 //Color Picker widget, code is below
                 DropDown()
@@ -128,6 +112,8 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Tetherband App")
+                .padding()
+                .frame(alignment: .center)
         }
     }
     func tryToAdd() {
@@ -261,6 +247,75 @@ struct DropDown : View {
         .animation(.spring())
     }
 }
+
+struct nfcButton : UIViewRepresentable {
+    @Binding var data : String
+    
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton()
+        button.setTitle("NFC Config", for: .normal)
+        button.backgroundColor = UIColor.green
+        button.addTarget(context.coordinator, action: #selector(context.coordinator.beginScan(sender:)), for: .touchUpInside)
+        return button
+    }
+    
+    func updateUIView(_ uiView: UIButton, context: Context) {
+        // Nothing Goes Here
+    }
+    
+    func makeCoordinator() -> nfcButton.Coordinator {
+        return Coordinator(data: $data)
+    }
+    
+    class Coordinator : NSObject, NFCNDEFReaderSessionDelegate {
+        var session : NFCNDEFReaderSession?
+        @Binding var data : String
+        
+        init(data: Binding<String>) {
+            _data = data
+        }
+        
+        @objc func beginScan (sender: Any) {
+            guard NFCNDEFReaderSession.readingAvailable else {
+                print("NFC Scanning Not Supported")
+                return
+            }
+            
+            session = NFCNDEFReaderSession(delegate: self, queue: .main, invalidateAfterFirstRead: true)
+            session?.alertMessage = "Scan The Bracelet"
+            session?.begin()
+        }
+        
+        func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
+            //Check invalidation reason for returned error
+            if let readerError = error as? NFCReaderError {
+                //Showing an alert when there are errors not simple
+                if(readerError.code != .readerSessionInvalidationErrorFirstNDEFTagRead) && (readerError.code != .readerSessionInvalidationErrorUserCanceled) {
+                    print("Error NFC Read: \(readerError.localizedDescription)")
+                }
+            }
+            //to read new tags, a new session instance is needed
+            self.session = nil
+        }
+        
+        func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
+            guard
+                let nfcMess = messages.first,
+                let record = nfcMess.records.first,
+                record.typeNameFormat == .absoluteURI || record.typeNameFormat == .nfcWellKnown,
+                let payload = String(data: record.payload, encoding: .utf8)
+            else {
+                return
+            }
+            print(payload)
+            self.data = payload
+        }
+    }
+    
+}
+
+
+
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
