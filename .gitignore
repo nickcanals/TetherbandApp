@@ -1,0 +1,25 @@
+#xcode stuff that doesn't need to be tracked.
+
+build/*
+*.pbxuser
+*.modelv3
+*.mode1
+*.mode2v3
+*.perspective
+*.pbxuser
+*.xcworkspace
+xcuserdata
+*.o
+*.LinkFileList
+*.hmap
+
+*~.nib/
+*.swp
+*~
+*.dat
+*.dep
+
+#Mac specific file that has no need to be on git
+.DS_Store
+
+
