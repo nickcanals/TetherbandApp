@@ -8,36 +8,32 @@
 import SwiftUI
 import CoreNFC
 
-struct Child: Identifiable {
-    var id = UUID()
-    let name: String
-    let inRange: String
-    let wearing: String
-}
-
-class ChildViewModel: ObservableObject {
-    @Published var kids: [Child] = [
-        Child(name: "Nick", inRange: "In Range", wearing: "Bracelet On"),
-        Child(name: "Eric", inRange: "In Range", wearing: "Bracelet On"),
-        Child(name: "Kyle", inRange: "In Range", wearing: "Bracelet On"),
-        Child(name: "Carlie", inRange: "In Range", wearing: "Bracelet On")
-    ]
-}
 
 struct ContentView: View {
     @State var bleToggle = true
     @State var alarmToggle = false
     @State var childAddToggle = true
     @State var nfcToggle = true
-    @StateObject var viewModel = ChildViewModel()
-    @State var text = ""
     @State var color = Color.black
+    @State var nfc = NFCScanner()
     @State var data = ""
-    
     
     var body: some View {
         NavigationView{
             VStack{
+                HStack{
+                    Text("Tetherband App")
+                        .bold()
+                        .font(.largeTitle)
+                    Image("Image1")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 100)
+                }
+                
+                //Color Picker widget, code is below
+                DropDown().padding()
+                
                 HStack{
                     Button(action: {bleToggle.toggle()},
                         label: {
@@ -78,85 +74,42 @@ struct ContentView: View {
                     Text("ALARMS ARE OFF")
                         .padding()
                 }
+    
                 
                 //NFC Config Section with code below
-                HStack{
-                    nfcButton(data: self.$data)
-                }.frame(width: 250, height: 50, alignment: /*@START_MENU_TOKEN@*/.center/*@END_MENU_TOKEN@*/).cornerRadius(8)
+                Button(action: {nfc.scanNow(_data: "Wowzerzzzzzzz")},
+                    label: {
+                        Text("NFC Config")
+                            .bold()
+                            .frame(width: 150,
+                                   height: 50,
+                                   alignment: .center)
+                            .background(Color.green)
+                            .cornerRadius(8)
+                            .foregroundColor(Color.white)
+                })
                 
                 Text(data).padding()
                 
-                //Color Picker widget, code is below
-                DropDown()
-                
-                Section(header: Text("")) {
-                    TextField("Childs Name...", text: $text)
-                        .padding()
-                    
-                    Button(action: { tryToAdd()
-                    }, label: {
-                            Text("Add Child")
-                                .bold()
-                                .frame(width: 250,
-                                       height: 50,
-                                       alignment: .center)
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                                .foregroundColor(Color.white)
-                    })
-                }
-                List{
-                    ForEach(viewModel.kids) { kid in
-                        ChildRow(name: kid.name, range: kid.inRange, wear: kid.wearing)
-                    }
+                NavigationLink(destination: ChildListView()) {
+                                Text("Child List")
+                                    .bold()
+                                    .frame(width: 150,
+                                           height: 50,
+                                           alignment: .center)
+                                    .background(Color.purple)
+                                    .cornerRadius(8)
+                                    .foregroundColor(Color.white)
                 }
             }
-            .navigationTitle("Tetherband App")
-                .padding()
-                .frame(alignment: .center)
         }
     }
-    func tryToAdd() {
-    //    guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
-    //        return
-    //    }
-
-        let newKid = Child(name: text, inRange: "In Range", wearing: "Bracelet On")
-        viewModel.kids.append(newKid)
-        text = ""
-    }
-    
     func colorChanger() {
         
     }
 }
 
-struct ChildRow: View {
-    let name: String
-    let range: String
-    let wear: String
-    
-    var body: some View {
-        HStack{
-            Image(systemName: "chart.bar")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 20)
-            Text(name)
-                .fontWeight(.semibold)
-                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
-                .minimumScaleFactor(1.0)
-            Text(range)
-                .fontWeight(.semibold)
-                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
-                .minimumScaleFactor(1.0)
-            Text(wear)
-                .fontWeight(.semibold)
-                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
-                .minimumScaleFactor(1.0)
-        }
-    }
-}
+
 
 struct DropDown : View {
     @State var expand = false
@@ -165,10 +118,8 @@ struct DropDown : View {
     var body : some View {
         VStack(alignment: .leading, content: {
             HStack {
-                
                 Text("Color Picker").fontWeight(.heavy).foregroundColor(.white)
                 Image(systemName: expand ? "chevron.up" : "chevron.down").resizable().frame(width: 13, height: 6).foregroundColor(.white)
-                
             }
             .frame(width: 250,
                    height: 50)
@@ -248,71 +199,128 @@ struct DropDown : View {
     }
 }
 
-struct nfcButton : UIViewRepresentable {
-    @Binding var data : String
+//struct nfcButton : UIViewRepresentable {
+//    @Binding var data : String
+//
+//    func makeUIView(context: Context) -> UIButton {
+//        let button = UIButton()
+//        button.setTitle("NFC Config", for: .normal)
+//        button.backgroundColor = UIColor.gray
+//        button.addTarget(context.coordinator, action: #selector(context.coordinator.beginScan(sender:)), for: .touchUpInside)
+//        return button
+//    }
+//
+//    func updateUIView(_ uiView: UIButton, context: Context) {
+//         Nothing Goes Here
+//    }
+//
+//    func makeCoordinator() -> nfcButton.Coordinator {
+//        return Coordinator(data: $data)
+//    }
     
-    func makeUIView(context: Context) -> UIButton {
-        let button = UIButton()
-        button.setTitle("NFC Config", for: .normal)
-        button.backgroundColor = UIColor.green
-        button.addTarget(context.coordinator, action: #selector(context.coordinator.beginScan(sender:)), for: .touchUpInside)
-        return button
-    }
-    
-    func updateUIView(_ uiView: UIButton, context: Context) {
-        // Nothing Goes Here
-    }
-    
-    func makeCoordinator() -> nfcButton.Coordinator {
-        return Coordinator(data: $data)
-    }
-    
-    class Coordinator : NSObject, NFCNDEFReaderSessionDelegate {
+    class NFCScanner : NSObject, ObservableObject, NFCNDEFReaderSessionDelegate {
         var session : NFCNDEFReaderSession?
-        @Binding var data : String
+        var data : String = ""
         
-        init(data: Binding<String>) {
-            _data = data
-        }
-        
-        @objc func beginScan (sender: Any) {
-            guard NFCNDEFReaderSession.readingAvailable else {
-                print("NFC Scanning Not Supported")
-                return
-            }
-            
-            session = NFCNDEFReaderSession(delegate: self, queue: .main, invalidateAfterFirstRead: true)
+        func scanNow (_data: String) {
+            data = _data
+            session = NFCNDEFReaderSession(delegate: self, queue: nil, invalidateAfterFirstRead: true)
             session?.alertMessage = "Scan The Bracelet"
             session?.begin()
         }
         
-        func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
-            //Check invalidation reason for returned error
-            if let readerError = error as? NFCReaderError {
-                //Showing an alert when there are errors not simple
-                if(readerError.code != .readerSessionInvalidationErrorFirstNDEFTagRead) && (readerError.code != .readerSessionInvalidationErrorUserCanceled) {
-                    print("Error NFC Read: \(readerError.localizedDescription)")
-                }
-            }
-            //to read new tags, a new session instance is needed
-            self.session = nil
-        }
+        func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {}
         
-        func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
-            guard
-                let nfcMess = messages.first,
-                let record = nfcMess.records.first,
-                record.typeNameFormat == .absoluteURI || record.typeNameFormat == .nfcWellKnown,
-                let payload = String(data: record.payload, encoding: .utf8)
-            else {
+        func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {}
+        
+        func readerSession(_ session: NFCNDEFReaderSession, didDetect tags: [NFCNDEFTag]) {
+            let str: String = data
+            if tags.count > 1{
+                let retryInterval = DispatchTimeInterval.milliseconds(500)
+                session.alertMessage = "More than 1 tag. Scan Again."
+                DispatchQueue.global().asyncAfter(deadline: .now() + retryInterval, execute: {session.restartPolling()})
                 return
             }
-            print(payload)
-            self.data = payload
+            let tag = tags.first!
+            session.connect(to: tag, completionHandler: {(error: Error?) in
+                if nil != error{
+                    session.alertMessage = "Unable to connect to tag."
+                    session.invalidate()
+                    return
+                }
+                tag.queryNDEFStatus(completionHandler: {(ndefstatus: NFCNDEFStatus, capacity: Int, error: Error?) in
+                    guard error == nil else {
+                        session.alertMessage = "Unable to connect to tag."
+                        session.invalidate()
+                        return
+                    }
+                    switch ndefstatus{
+                    case .notSupported:
+                        session.alertMessage = "Unable to connect to tag."
+                        session.invalidate()
+                    case .readOnly:
+                        session.alertMessage = "Unable to connect read tag only."
+                        session.invalidate()
+                    case .readWrite:
+                        tag.writeNDEF(.init(records: [NFCNDEFPayload.wellKnownTypeURIPayload(string: "\(str)")!]), completionHandler: {(error: Error?) in
+                            if nil != error{
+                                session.alertMessage = "Write NDEF failed."
+                            }
+                            else{
+                                session.alertMessage = "Write Success!"
+                            }
+                            session.invalidate()
+                        })
+                    @unknown default:
+                        session.alertMessage = "Unknown Error."
+                        session.invalidate()
+                    }
+                })
+            })
         }
     }
+//        init(data: Binding<String>) {
+//            _data = data
+//        }
+//
+//        @objc func beginScan (sender: Any) {
+//            guard NFCNDEFReaderSession.readingAvailable else {
+//                print("NFC Scanning Not Supported")
+//                return
+//            }
+//
+//            session = NFCNDEFReaderSession(delegate: self, queue: .main, invalidateAfterFirstRead: true)
+//            session?.alertMessage = "Scan The Bracelet"
+//            session?.begin()
+//        }
+//
+//        func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
+//            //Check invalidation reason for returned error
+//            if let readerError = error as? NFCReaderError {
+//                //Showing an alert when there are errors not simple
+//                if(readerError.code != .readerSessionInvalidationErrorFirstNDEFTagRead) && (readerError.code != .readerSessionInvalidationErrorUserCanceled) {
+//                    print("Error NFC Read: \(readerError.localizedDescription)")
+//                }
+//            }
+//            //to read new tags, a new session instance is needed
+//            self.session = nil
+//        }
+//
+//        func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
+//            guard
+//                let nfcMess = messages.first,
+//                let record = nfcMess.records.first,
+//                record.typeNameFormat == .absoluteURI || record.typeNameFormat == .nfcWellKnown,
+//                let payload = String(data: record.payload, encoding: .utf8)
+//            else {
+//                return
+//            }
+//            print(payload)
+//            self.data = payload
+//        }
+  //  }
     
-}
+//}
 
 
 
@@ -320,6 +328,7 @@ struct nfcButton : UIViewRepresentable {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+            .padding()
     }
 }
 
