@@ -19,20 +19,20 @@ struct ContentView: View {
     @State var data = ""
     
     var body: some View {
-        NavigationView{
+        //NavigationView{
             VStack{
                 HStack{
-                    Text("Tetherband App")
-                        .bold()
-                        .font(.largeTitle)
+                    //Text("Tetherband App")
+                      //  .bold()
+                        //.font(.largeTitle)
                     Image("Image1")
                         .resizable()
                         .scaledToFit()
-                        .frame(height: 100)
+                        .frame(height: 150)
                 }
                 
                 //Color Picker widget, code is below
-                DropDown().padding()
+                DropDown()
                 
                 HStack{
                     Button(action: {bleToggle.toggle()},
@@ -101,8 +101,9 @@ struct ContentView: View {
                                     .cornerRadius(8)
                                     .foregroundColor(Color.white)
                 }
+                Spacer()
             }
-        }
+        //}
     }
     func colorChanger() {
         

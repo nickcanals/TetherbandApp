@@ -16,10 +16,10 @@ struct Child: Identifiable {
 
 class ChildViewModel: ObservableObject {
     @Published var kids: [Child] = [
-        Child(name: "Nick", inRange: "In Range", wearing: "Bracelet On"),
-        Child(name: "Eric", inRange: "In Range", wearing: "Bracelet On"),
-        Child(name: "Kyle", inRange: "In Range", wearing: "Bracelet On"),
-        Child(name: "Carlie", inRange: "In Range", wearing: "Bracelet On")
+        Child(name: "Nick", inRange: "Yes", wearing: "Yes"),
+        Child(name: "Eric", inRange: "Yes", wearing: "Yes"),
+        Child(name: "Kyle", inRange: "Yes", wearing: "Yes"),
+        Child(name: "Carlie", inRange: "Yes", wearing: "Yes")
     ]
 }
 
@@ -45,6 +45,9 @@ struct ChildListView: View {
                             .cornerRadius(8)
                             .foregroundColor(Color.white)
                 })
+                
+                Text("  Battery   |    Name    |    In Range    |    Bracelet On")
+                    .padding()
             }
             List{
                 ForEach(viewModel.kids) { kid in
@@ -52,13 +55,13 @@ struct ChildListView: View {
                 }
             }
         }
-    }
+    } 
     func tryToAdd() {
     //    guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
     //        return
     //    }
 
-        let newKid = Child(name: text, inRange: "In Range", wearing: "Bracelet On")
+        let newKid = Child(name: text, inRange: "Yes", wearing: "Yes")
         viewModel.kids.append(newKid)
         text = ""
     }
@@ -74,19 +77,29 @@ struct ChildRow: View {
             Image("Bat_Full")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 70, height: 40)
+                .frame(width: 30, height: 30)
+            Text("25%")
+            Text("|")
             Text(name)
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
+                .frame(maxWidth: .infinity)
+            Text("|")
             Text(range)
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
+                .frame(maxWidth: .infinity)
+                .foregroundColor(Color.green)
+            Text("|")
+                //.frame(maxWidth: .infinity)
             Text(wear)
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
+                .frame(maxWidth: .infinity)
+                .foregroundColor(Color.green)
         }
     }
 }
