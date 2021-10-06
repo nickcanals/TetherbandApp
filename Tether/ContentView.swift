@@ -14,12 +14,12 @@ struct ContentView: View {
     @State var alarmToggle = false
     @State var childAddToggle = true
     @State var nfcToggle = true
+    @State var nfcWriter = NFCWrite()
     @State var color = Color.black
-    @State var nfc = NFCScanner()
     @State var data = ""
     
     var body: some View {
-        //NavigationView{
+        NavigationView{
             VStack{
                 HStack{
                     //Text("Tetherband App")
@@ -77,9 +77,15 @@ struct ContentView: View {
     
                 
                 //NFC Config Section with code below
-                Button(action: {nfc.scanNow(_data: "Wowzerzzzzzzz")},
+                nfcButton(data: self.$data)
+                    .frame(width: 150, height: 50, alignment: .center)
+                    .cornerRadius(8)
+                
+                Text(data).padding()
+                
+                Button(action: {self.nfcWriter.scanNow(message: "Color", recordType: .text)},
                     label: {
-                        Text("NFC Config")
+                        Text("NFC Write")
                             .bold()
                             .frame(width: 150,
                                    height: 50,
@@ -88,8 +94,6 @@ struct ContentView: View {
                             .cornerRadius(8)
                             .foregroundColor(Color.white)
                 })
-                
-                Text(data).padding()
                 
                 NavigationLink(destination: ChildListView()) {
                                 Text("Child List")
@@ -102,8 +106,8 @@ struct ContentView: View {
                                     .foregroundColor(Color.white)
                 }
                 Spacer()
-            }
-        //}
+            }.background(Color.white.edgesIgnoringSafeArea(.all))
+        }
     }
     func colorChanger() {
         
@@ -200,129 +204,186 @@ struct DropDown : View {
     }
 }
 
-//struct nfcButton : UIViewRepresentable {
-//    @Binding var data : String
-//
-//    func makeUIView(context: Context) -> UIButton {
-//        let button = UIButton()
-//        button.setTitle("NFC Config", for: .normal)
-//        button.backgroundColor = UIColor.gray
-//        button.addTarget(context.coordinator, action: #selector(context.coordinator.beginScan(sender:)), for: .touchUpInside)
-//        return button
-//    }
-//
-//    func updateUIView(_ uiView: UIButton, context: Context) {
-//         Nothing Goes Here
-//    }
-//
-//    func makeCoordinator() -> nfcButton.Coordinator {
-//        return Coordinator(data: $data)
-//    }
+//NFC Write Code
+enum RecordType {
+    case text, url
+}
+
+class NFCWrite : NSObject, NFCNDEFReaderSessionDelegate {
+    var session : NFCNDEFReaderSession?
+    var mess = ""
+    var rType : RecordType = .text
     
-    class NFCScanner : NSObject, ObservableObject, NFCNDEFReaderSessionDelegate {
-        var session : NFCNDEFReaderSession?
-        var data : String = ""
+    func scanNow(message: String, recordType: RecordType) {
+        guard NFCNDEFReaderSession.readingAvailable else {
+            print("Scanning Not Supported for This Device")
+            return
+        }
+        self.mess = message
+        self.rType = recordType
         
-        func scanNow (_data: String) {
-            data = _data
-            session = NFCNDEFReaderSession(delegate: self, queue: nil, invalidateAfterFirstRead: true)
+        session = NFCNDEFReaderSession(delegate: self, queue: .main, invalidateAfterFirstRead: false)
+        session?.alertMessage = "Scan The Bracelet"
+        session?.begin()
+    }
+    
+    func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
+        //to implement error stuff
+    }
+    
+    func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
+        //Nothing Goes Here
+    }
+    
+    func readerSessionDidBecomeActive(_ session: NFCNDEFReaderSession) {
+        //To Silence Console
+    }
+    
+    func readerSession(_ session: NFCNDEFReaderSession, didDetect tags: [NFCNDEFTag]) {
+        if tags.count > 1{
+            let retryInterval = DispatchTimeInterval.milliseconds(1000)
+            session.alertMessage = "More than 1 tag. Scan Again."
+            DispatchQueue.global().asyncAfter(deadline: .now() + retryInterval) {
+                session.restartPolling()
+            }
+            return
+        }
+        let tag = tags.first!
+        session.connect(to: tag) { (error) in
+            if let error = error {
+                session.alertMessage = "Unable to connect to tag."
+                session.invalidate()
+                print("Error Blasted")
+                return
+            }
+            tag.queryNDEFStatus { (ndefStatus, capacity, error) in
+                if let error = error {
+                    session.alertMessage = "Unable to connect to tag."
+                    session.invalidate()
+                    print("Error Blasted")
+                    return
+                }
+                
+                //move to query
+                switch ndefStatus{
+                case .notSupported:
+                    session.alertMessage = "Unable to connect to tag."
+                    session.invalidate()
+                case .readOnly:
+                    session.alertMessage = "Unable to connect read tag only."
+                    session.invalidate()
+                case .readWrite: //write logic
+                    print("Read Write accepted")
+                    let payload : NFCNDEFPayload?
+                    switch self.rType {
+                    case .text:
+                        guard !self.mess.isEmpty else {
+                            session.alertMessage = "Empty Data"
+                            session.invalidate(errorMessage: "Empty Text Data")
+                            return
+                        }
+                        payload = NFCNDEFPayload(format: .nfcWellKnown, type: "T".data(using: .utf8)!, identifier: "Text".data(using: .utf8)!, payload: self.mess.data(using: .utf8)!)
+                        
+                    case .url:
+                        print("Trying to send URL")
+                        //Nothing needs to be here
+                        guard let url = URL(string: self.mess) else {
+                            print("Not Valid URL")
+                            session.alertMessage = "Unrecognizable URL"
+                            session.invalidate(errorMessage: "Not URL")
+                            return
+                        }
+                        
+                        payload = NFCNDEFPayload.wellKnownTypeURIPayload(url: url)
+                    }
+                    
+                    //making message
+                    let NFCMessage = NFCNDEFMessage(records: [payload!])
+                    
+                    //writing to tag
+                    tag.writeNDEF(NFCMessage) { (error) in
+                        if error != nil{
+                            session.alertMessage = "Write NDEF failed. \(error!.localizedDescription)"
+                            print("Failed to write. \(error!.localizedDescription)")
+                        }
+                        else{
+                            session.alertMessage = "Write Success!"
+                            print("write successful")
+                        }
+                        session.invalidate()
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+//NFC Read Code
+struct nfcButton : UIViewRepresentable {
+    @Binding var data : String
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton()
+        button.setTitle("NFC Config", for: .normal)
+        button.backgroundColor = UIColor.green
+        button.addTarget(context.coordinator, action: #selector(context.coordinator.beginScan(sender:)), for: .touchUpInside)
+        return button
+    }
+
+    func updateUIView(_ uiView: UIButton, context: Context) {
+         //Nothing Goes Here
+    }
+
+    func makeCoordinator() -> nfcButton.Coordinator {
+        return Coordinator(data: $data)
+    }
+    
+    class Coordinator : NSObject, ObservableObject, NFCNDEFReaderSessionDelegate {
+        var session : NFCNDEFReaderSession?
+        @Binding var data : String
+        
+        init(data: Binding<String>) {
+            _data = data
+        }
+        
+        @objc func beginScan (sender: Any) {
+            guard NFCNDEFReaderSession.readingAvailable else {
+                print("NFC Scanning Not Supported")
+                return
+            }
+        
+            session = NFCNDEFReaderSession(delegate: self, queue: .main, invalidateAfterFirstRead: true)
             session?.alertMessage = "Scan The Bracelet"
             session?.begin()
         }
         
-        func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {}
-        
-        func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {}
-        
-        func readerSession(_ session: NFCNDEFReaderSession, didDetect tags: [NFCNDEFTag]) {
-            let str: String = data
-            if tags.count > 1{
-                let retryInterval = DispatchTimeInterval.milliseconds(500)
-                session.alertMessage = "More than 1 tag. Scan Again."
-                DispatchQueue.global().asyncAfter(deadline: .now() + retryInterval, execute: {session.restartPolling()})
-                return
+        func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
+            //Check invalidation reason for returned error
+            if let readerError = error as? NFCReaderError {
+            //Showing an alert when there are errors not simple
+                if(readerError.code != .readerSessionInvalidationErrorFirstNDEFTagRead) && (readerError.code != .readerSessionInvalidationErrorUserCanceled) {
+                            print("Error NFC Read: \(readerError.localizedDescription)")
+                }
             }
-            let tag = tags.first!
-            session.connect(to: tag, completionHandler: {(error: Error?) in
-                if nil != error{
-                    session.alertMessage = "Unable to connect to tag."
-                    session.invalidate()
+            //to read new tags, a new session instance is needed
+            self.session = nil
+        }
+        
+        func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
+            guard
+                let nfcMess = messages.first,
+                let record = nfcMess.records.first,
+                record.typeNameFormat == .absoluteURI || record.typeNameFormat == .nfcWellKnown,
+                let payload = String(data: record.payload, encoding: .utf8)
+                else {
                     return
                 }
-                tag.queryNDEFStatus(completionHandler: {(ndefstatus: NFCNDEFStatus, capacity: Int, error: Error?) in
-                    guard error == nil else {
-                        session.alertMessage = "Unable to connect to tag."
-                        session.invalidate()
-                        return
-                    }
-                    switch ndefstatus{
-                    case .notSupported:
-                        session.alertMessage = "Unable to connect to tag."
-                        session.invalidate()
-                    case .readOnly:
-                        session.alertMessage = "Unable to connect read tag only."
-                        session.invalidate()
-                    case .readWrite:
-                        tag.writeNDEF(.init(records: [NFCNDEFPayload.wellKnownTypeURIPayload(string: "\(str)")!]), completionHandler: {(error: Error?) in
-                            if nil != error{
-                                session.alertMessage = "Write NDEF failed."
-                            }
-                            else{
-                                session.alertMessage = "Write Success!"
-                            }
-                            session.invalidate()
-                        })
-                    @unknown default:
-                        session.alertMessage = "Unknown Error."
-                        session.invalidate()
-                    }
-                })
-            })
+                print(payload)
+                self.data = payload
         }
     }
-//        init(data: Binding<String>) {
-//            _data = data
-//        }
-//
-//        @objc func beginScan (sender: Any) {
-//            guard NFCNDEFReaderSession.readingAvailable else {
-//                print("NFC Scanning Not Supported")
-//                return
-//            }
-//
-//            session = NFCNDEFReaderSession(delegate: self, queue: .main, invalidateAfterFirstRead: true)
-//            session?.alertMessage = "Scan The Bracelet"
-//            session?.begin()
-//        }
-//
-//        func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
-//            //Check invalidation reason for returned error
-//            if let readerError = error as? NFCReaderError {
-//                //Showing an alert when there are errors not simple
-//                if(readerError.code != .readerSessionInvalidationErrorFirstNDEFTagRead) && (readerError.code != .readerSessionInvalidationErrorUserCanceled) {
-//                    print("Error NFC Read: \(readerError.localizedDescription)")
-//                }
-//            }
-//            //to read new tags, a new session instance is needed
-//            self.session = nil
-//        }
-//
-//        func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
-//            guard
-//                let nfcMess = messages.first,
-//                let record = nfcMess.records.first,
-//                record.typeNameFormat == .absoluteURI || record.typeNameFormat == .nfcWellKnown,
-//                let payload = String(data: record.payload, encoding: .utf8)
-//            else {
-//                return
-//            }
-//            print(payload)
-//            self.data = payload
-//        }
-  //  }
-    
-//}
-
+}
 
 
 
