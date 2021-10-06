@@ -1,0 +1,3 @@
+# command that tells git to treat pbxproj file as binary and automatically do merges for us.
+
+*.pbxproj binary merge=union
