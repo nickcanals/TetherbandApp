@@ -22,6 +22,7 @@ struct ContentView: View {
     @State var colorStr = ""
     @State var colorInt = 0
     
+    @ObservedObject var bleManager = BLEManager()
     
     var body: some View {
         NavigationView{
@@ -30,7 +31,6 @@ struct ContentView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(height: 150)
-                
                 
                 //Color Dropdown Code
                 VStack(alignment: .leading, content: {
@@ -119,7 +119,7 @@ struct ContentView: View {
                     .padding()
                 
                 HStack{
-                    Button(action: {bleToggle.toggle()},
+                    Button(action: {self.bleManager.scanAndConnect()},
                         label: {
                             Text("BLE Connect")
                                 .bold()
@@ -165,7 +165,7 @@ struct ContentView: View {
     
                 HStack{
                     //NFC Config Section with code below
-                    nfcButton(data: self.$data)
+                    nfcButton(data: self.$data, bleManagerCopy: bleManager)
                         .frame(width: 150, height: 50, alignment: .center)
                         .cornerRadius(8)
                     
@@ -412,7 +412,8 @@ class NFCWrite : NSObject, NFCNDEFReaderSessionDelegate {
 //NFC Read Code
 struct nfcButton : UIViewRepresentable {
     @Binding var data : String
-
+    let bleManagerCopy: BLEManager?
+    
     func makeUIView(context: Context) -> UIButton {
         let button = UIButton()
         button.setTitle("NFC Read", for: .normal)
@@ -426,15 +427,17 @@ struct nfcButton : UIViewRepresentable {
     }
 
     func makeCoordinator() -> nfcButton.Coordinator {
-        return Coordinator(data: $data)
+        return Coordinator(data: $data, bleManagerCopy2: bleManagerCopy!)
     }
     
     class Coordinator : NSObject, ObservableObject, NFCNDEFReaderSessionDelegate {
         var session : NFCNDEFReaderSession?
         @Binding var data : String
+        let bleManagerCopy2: BLEManager?
         
-        init(data: Binding<String>) {
+        init(data: Binding<String>, bleManagerCopy2: BLEManager) {
             _data = data
+            self.bleManagerCopy2 = bleManagerCopy2
         }
         
         @objc func beginScan (sender: Any) {
@@ -469,8 +472,9 @@ struct nfcButton : UIViewRepresentable {
                 else {
                     return
                 }
-                print(payload)
+                print("Value read from NFC: \(payload)")
                 self.data = payload
+            self.bleManagerCopy2?.scanAndConnect(read_uuid: self.data)
         }
     }
 }

@@ -48,5 +48,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>&quot;App uses Bluetooth to connect to Tetherband bracelets&quot;</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>&quot;App uses Bluetooth to connect to Tetherband bracelets&quot;</string>
 </dict>
 </plist>
