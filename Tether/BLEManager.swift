@@ -113,18 +113,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     
     func scanAndConnect(read_uuid: String){
         scanAndConnectFlag = true
-        print("read_uuid value is: \(read_uuid)")
-        var new_nsuuid : UUID
-        //let conversion = UUID.init(uuidString: read_uuid)
-        if let conversion = UUID.init(uuidString: read_uuid) as? UUID{
-            new_nsuuid = conversion
-            let customUUID : [CBUUID] = [CBUUID.init(nsuuid: new_nsuuid)]
-            print("customUUID: \(customUUID.description)")
-            localCentral.scanForPeripherals(withServices: customUUID, options: nil)
-        }
-        else{
-            print("CONVERSION FAILED")
-        }
+        var new_string : String
+        new_string = read_uuid
+        new_string.remove(at: new_string.startIndex)
+        let customUUID : [CBUUID] = [CBUUID.init(string: new_string)]
+        localCentral.scanForPeripherals(withServices: customUUID, options: nil)
     }
     
     // debug function to print out the contents of manufacturer data in advertisement packets
