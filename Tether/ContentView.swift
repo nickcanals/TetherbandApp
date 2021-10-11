@@ -8,6 +8,19 @@
 import SwiftUI
 import CoreNFC
 
+//Struct and Object for Child List 
+struct Child: Identifiable {
+    var id = UUID()
+    var childRSSI: Int
+    let name: String
+    let inRange: String
+    let wearing: String
+}
+
+class ChildViewModel: ObservableObject {
+    @Published var kids: [Child] = []
+}
+
 
 struct ContentView: View {
     @State var bleToggle = true
@@ -17,159 +30,121 @@ struct ContentView: View {
     @State var nfcWriter = NFCWrite()
     @State var data = ""
     
+    //Color Dropdown variables
     @State var expand = false
     @State var color = Color.black
     @State var colorStr = ""
     @State var colorInt = 0
     
-    @ObservedObject var bleManager = BLEManager()
+    //Child List Variables
+    @StateObject var viewModel = ChildViewModel()
+    //@State var childListData = ""
+    @State var text = ""
+    @State var listFlag = false
     
+    
+    @ObservedObject var bleManager = BLEManager()
+     
     var body: some View {
         NavigationView{
             VStack{
-                Image("Image1")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 150)
-                
-                //Color Dropdown Code
-                VStack(alignment: .leading, content: {
-                    HStack {
-                        Text("Color Picker").fontWeight(.heavy).foregroundColor(.white)
-                        Image(systemName: expand ? "chevron.up" : "chevron.down").resizable().frame(width: 13, height: 6).foregroundColor(.white)
-                    }
-                    .frame(width: 250,
-                           height: 50)
-                    .cornerRadius(8)
-                    .background(color)
-                    .onTapGesture(perform: {
-                        self.expand.toggle()
-                    })
-                    
-                    if expand {
-                        Button(action: { color = Color.orange; colorStr = "orange"; colorInt = 0
-                        }, label: {
-                                Text("Orange")
-                                    .frame(width: 250,
-                                           height: 30,
-                                           alignment: .center)
-                                    .background(Color.orange)
-                                    .foregroundColor(Color.white)
-                        })
-                        
-                        Button(action: { color = Color.purple; colorStr = "purple"; colorInt = 1
-                        }, label: {
-                                Text("Purple")
-                                    .frame(width: 250,
-                                           height: 30,
-                                           alignment: .center)
-                                    .foregroundColor(Color.white)
-                                    .background(Color.purple)
-                        })
-                        
-                        Button(action: { color = Color.yellow; colorStr = "yellow"; colorInt = 2
-                        }, label: {
-                                Text("Yellow")
-                                    .frame(width: 250,
-                                           height: 30,
-                                           alignment: .center)
-                                    .background(Color.yellow)
-                                    .foregroundColor(Color.white)
-                        })
-                        
-                        Button(action: { color = Color.red; colorStr = "red"; colorInt = 3
-                        }, label: {
-                                Text("Red")
-                                    .frame(width: 250,
-                                           height: 30,
-                                           alignment: .center)
-                                    .background(Color.red)
-                                    .foregroundColor(Color.white)
-                        })
-                        
-                        Button(action: { color = Color.blue; colorStr = "blue"; colorInt = 4
-                        }, label: {
-                                Text("Blue")
-                                    .frame(width: 250,
-                                           height: 30,
-                                           alignment: .center)
-                                    .background(Color.blue)
-                                    .foregroundColor(Color.white)
-                        })
-                        
-                        Button(action: { color = Color.green; colorStr = "green"; colorInt = 5
-                        }, label: {
-                                Text("Green")
-                                    .frame(width: 250,
-                                           height: 30,
-                                           alignment: .center)
-                                    .background(Color.green)
-                                    .foregroundColor(Color.white)
-                        })
-                    }
-                    
-                })
-                .frame(width: 250,height: expand ? 250 : 50)
-                .padding()
-                .cornerRadius(12)
-                .animation(.spring())
-                
-                Text(colorStr)
-                    .foregroundColor(Color.black)
-                    .padding()
-                
                 HStack{
-                    Button(action: {self.bleManager.scanAndConnect()},
-                        label: {
-                            Text("BLE Connect")
-                                .bold()
-                                .frame(width: 150,
-                                       height: 50,
-                                       alignment: .center)
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                                .foregroundColor(Color.white)
-                    })
+                    Image("Image1")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 150)
                     
-                    Button(action: {alarmToggle.toggle()},
-                        label: {
-                            Text("Emergency Alarm")
-                                .bold()
-                                .frame(width: 150,
-                                       height: 50,
-                                       alignment: .center)
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                                .foregroundColor(Color.white)
+                    //Color Dropdown Code
+                    VStack(alignment: .leading, content: {
+                        HStack {
+                            Text("Color Picker").fontWeight(.heavy).foregroundColor(.white)
+                            Image(systemName: expand ? "chevron.up" : "chevron.down").resizable().frame(width: 13, height: 6).foregroundColor(.white)
+                        }
+                        .frame(width: 150,
+                               height: 50)
+                        .cornerRadius(8)
+                        .background(color)
+                        .onTapGesture(perform: {
+                            self.expand.toggle()
+                        })
+                        
+                        if expand {
+                            Button(action: { color = Color.orange; colorStr = "orange"; colorInt = 0
+                            }, label: {
+                                    Text("Orange")
+                                        .frame(width: 150,
+                                               height: 30,
+                                               alignment: .center)
+                                        .background(Color.orange)
+                                        .foregroundColor(Color.white)
+                            })
+                            
+                            Button(action: { color = Color.purple; colorStr = "purple"; colorInt = 1
+                            }, label: {
+                                    Text("Purple")
+                                        .frame(width: 150,
+                                               height: 30,
+                                               alignment: .center)
+                                        .foregroundColor(Color.white)
+                                        .background(Color.purple)
+                            })
+                            
+                            Button(action: { color = Color.yellow; colorStr = "yellow"; colorInt = 2
+                            }, label: {
+                                    Text("Yellow")
+                                        .frame(width: 150,
+                                               height: 30,
+                                               alignment: .center)
+                                        .background(Color.yellow)
+                                        .foregroundColor(Color.white)
+                            })
+                            
+                            Button(action: { color = Color.red; colorStr = "red"; colorInt = 3
+                            }, label: {
+                                    Text("Red")
+                                        .frame(width: 150,
+                                               height: 30,
+                                               alignment: .center)
+                                        .background(Color.red)
+                                        .foregroundColor(Color.white)
+                            })
+                            
+                            Button(action: { color = Color.blue; colorStr = "blue"; colorInt = 4
+                            }, label: {
+                                    Text("Blue")
+                                        .frame(width: 150,
+                                               height: 30,
+                                               alignment: .center)
+                                        .background(Color.blue)
+                                        .foregroundColor(Color.white)
+                            })
+                            
+                            Button(action: { color = Color.green; colorStr = "green"; colorInt = 5
+                            }, label: {
+                                    Text("Green")
+                                        .frame(width: 150,
+                                               height: 30,
+                                               alignment: .center)
+                                        .background(Color.green)
+                                        .foregroundColor(Color.white)
+                            })
+                        }
+                        
                     })
-                }
-                if bleToggle{
-                    Text("Bluetooth Connected")
-                        .foregroundColor(Color.black)
-                }
-                else{
-                    Text("Bluetooth Disconnected")
-                        .foregroundColor(Color.black)
+                    .frame(width: 150,height: expand ? 250 : 50)
+                    .padding()
+                    .cornerRadius(12)
+                    .animation(.spring())
                 }
                 
-                if alarmToggle{
-                    Text("ALARRMS TRIGGERED")
-                        .padding()
-                        .foregroundColor(Color.black)
-                }
-                else{
-                    Text("ALARMS ARE OFF")
-                        .padding()
-                        .foregroundColor(Color.black)
-                }
-    
+                
                 HStack{
                     //NFC Config Section with code below
                     nfcButton(data: self.$data, bleManagerCopy: bleManager)
                         .frame(width: 150, height: 50, alignment: .center)
                         .cornerRadius(8)
                     
-                    Button(action: {self.nfcWriter.scanNow(message: "Color", recordType: .text)},
+                    Button(action: {listFlag.toggle(); self.nfcWriter.scanNow(message: colorStr, recordType: .text)},
                         label: {
                             Text("NFC Write")
                                 .bold()
@@ -184,22 +159,107 @@ struct ContentView: View {
                 
                 Text(data).padding().foregroundColor(Color.black)
                 
-                NavigationLink(destination: ChildListView()) {
-                                Text("Child List")
+                HStack{
+                   // Button(action: {self.bleManager.scanAndConnect()},
+                     //   label: {
+                       //     Text("BLE Connect")
+                         //       .bold()
+                           //     .frame(width: 150,
+                             //          height: 50,
+                               //        alignment: .center)
+                                //.background(Color.blue)
+                                //.cornerRadius(8)
+                                //.foregroundColor(Color.white)
+                    //})
+                    //NavigationLink(destination: ChildListView()) {
+                      //              Text("Child List")
+                        //                .bold()
+                          //              .frame(width: 150,
+                            //                   height: 50,
+                              //                 alignment: .center)
+                                //        .background(Color.purple)
+                                  //      .cornerRadius(8)
+                                    //    .foregroundColor(Color.white)
+                    //}
+                    
+                    Button(action: {alarmToggle.toggle()},
+                        label: {
+                            Text("Emergency Alarm")
+                                .bold()
+                                .frame(width: 150,
+                                       height: 50,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+                    
+                    if alarmToggle{
+                        Text("ALARRMS TRIGGERED")
+                            .padding()
+                            .foregroundColor(Color.black)
+                    }
+                    else{
+                        Text("ALARMS ARE OFF")
+                            .padding()
+                            .foregroundColor(Color.black)
+                    }
+                }
+                
+                Spacer()
+                
+                VStack{
+                    Section(header: Text("")) {
+                        TextField("Childs Name...", text: $text)
+                            .padding()
+                        
+                        Button(action: { tryToAdd()
+                        }, label: {
+                                Text("Add Child")
                                     .bold()
-                                    .frame(width: 150,
-                                           height: 50,
+                                    .frame(width: 250,
+                                           height: 40,
                                            alignment: .center)
-                                    .background(Color.purple)
+                                    .background(Color.blue)
                                     .cornerRadius(8)
                                     .foregroundColor(Color.white)
-                }
+                        })
+                        
+                        Text("  Battery   |    Name    |    RSSI Value   |   |")
+                            .padding()
+                        
+                        //Text("  Battery   |    Name    |    In Range    |    Bracelet On")
+                          //  .padding()
+                    }
+                    List{
+                        ForEach(viewModel.kids) { kid in
+                            ChildRow(name: kid.name, range: kid.inRange, wear: kid.wearing, rSSI: kid.childRSSI)
+                        }
+                    }
+                }.background(Color.black)
+                
                 Spacer()
             }.background(Color.white.edgesIgnoringSafeArea(.all))
         }
     }
-    func colorChanger() {
-        
+    func rssiGetter() -> Int{
+        if(listFlag == true){
+            let rssiInt = self.bleManager.scannedPeripherals[0].rssi
+            return rssiInt
+        }
+        else{
+            return 0
+        }
+    }
+    
+    func tryToAdd() {
+        //guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
+        //    return
+        //}
+
+        let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "")
+        viewModel.kids.append(newKid)
+        text = ""
     }
 }
 
@@ -215,7 +275,7 @@ struct DropDown : View {
                 Text("Color Picker").fontWeight(.heavy).foregroundColor(.white)
                 Image(systemName: expand ? "chevron.up" : "chevron.down").resizable().frame(width: 13, height: 6).foregroundColor(.white)
             }
-            .frame(width: 250,
+            .frame(width: 150,
                    height: 50)
             .cornerRadius(8)
             .background(color)
@@ -227,7 +287,7 @@ struct DropDown : View {
                 Button(action: { color = Color.orange; colorStr = "orange"
                 }, label: {
                         Text("Orange")
-                            .frame(width: 250,
+                            .frame(width: 150,
                                    height: 30,
                                    alignment: .center)
                             .background(Color.orange)
@@ -237,7 +297,7 @@ struct DropDown : View {
                 Button(action: { color = Color.purple; colorStr = "purple"
                 }, label: {
                         Text("Purple")
-                            .frame(width: 250,
+                            .frame(width: 150,
                                    height: 30,
                                    alignment: .center)
                             .foregroundColor(Color.white)
@@ -247,7 +307,7 @@ struct DropDown : View {
                 Button(action: { color = Color.yellow; colorStr = "yellow"
                 }, label: {
                         Text("Yellow")
-                            .frame(width: 250,
+                            .frame(width: 150,
                                    height: 30,
                                    alignment: .center)
                             .background(Color.yellow)
@@ -257,7 +317,7 @@ struct DropDown : View {
                 Button(action: { color = Color.red; colorStr = "red"
                 }, label: {
                         Text("Red")
-                            .frame(width: 250,
+                            .frame(width: 150,
                                    height: 30,
                                    alignment: .center)
                             .background(Color.red)
@@ -277,7 +337,7 @@ struct DropDown : View {
                 Button(action: { color = Color.green; colorStr = "green"
                 }, label: {
                         Text("Green")
-                            .frame(width: 250,
+                            .frame(width: 150,
                                    height: 30,
                                    alignment: .center)
                             .background(Color.green)
@@ -286,13 +346,59 @@ struct DropDown : View {
             }
             
         })
-        .frame(width: 250,height: expand ? 250 : 50)
+        .frame(width: 150,height: expand ? 250 : 50)
         .padding()
         .cornerRadius(12)
         .animation(.spring())
     }
 }
+   
+
+//Child List Stuff Here Too
+struct ChildRow: View {
+    let name: String
+    let range: String
+    let wear: String
+    let rSSI: Int
     
+    var body: some View {
+        HStack{
+            Image("Bat_Full")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 30, height: 30)
+            Text("  25%  ")
+            Text("|")
+            Text("  " + name + "  ")
+                .fontWeight(.semibold)
+                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
+                .minimumScaleFactor(1.0)
+                .frame(maxWidth: .infinity)
+            Text("|")
+            Text("  \(rSSI)")
+                .fontWeight(.semibold)
+                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
+                .minimumScaleFactor(1.0)
+                .frame(maxWidth: .infinity)
+            Text("|")
+            Text(range)
+                .fontWeight(.semibold)
+                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
+                .minimumScaleFactor(1.0)
+                .frame(maxWidth: .infinity)
+                .foregroundColor(Color.green)
+            Text("|")
+                //.frame(maxWidth: .infinity)
+            Text(wear)
+                .fontWeight(.semibold)
+                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
+                .minimumScaleFactor(1.0)
+                .frame(maxWidth: .infinity)
+                .foregroundColor(Color.green)
+        }
+    }
+}
+
     
 //NFC Write Code
 enum RecordType {
