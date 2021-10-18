@@ -136,7 +136,8 @@ struct ContentView: View {
                     .cornerRadius(12)
                     .animation(.spring())
                 }
-                
+                .navigationBarTitle("")
+                .navigationBarHidden(true)
                 
                 HStack{
                     //NFC Config Section with code below
@@ -157,20 +158,20 @@ struct ContentView: View {
                     })
                 }
                 
-                Text(data).padding().foregroundColor(Color.black)
+                //Text(data).padding().foregroundColor(Color.black)
                 
                 HStack{
-                   // Button(action: {self.bleManager.scanAndConnect()},
-                     //   label: {
-                       //     Text("BLE Connect")
-                         //       .bold()
-                           //     .frame(width: 150,
-                             //          height: 50,
-                               //        alignment: .center)
-                                //.background(Color.blue)
-                                //.cornerRadius(8)
-                                //.foregroundColor(Color.white)
-                    //})
+                    Button(action: {self.bleManager.scanAndConnect()},
+                        label: {
+                            Text("BLE Connect")
+                                .bold()
+                                .frame(width: 150,
+                                       height: 50,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
                     //NavigationLink(destination: ChildListView()) {
                       //              Text("Child List")
                         //                .bold()
@@ -206,9 +207,25 @@ struct ContentView: View {
                     }
                 }
                 
-                Spacer()
+                //Spacer()
                 
                 VStack{
+                    //Text("Battery level is: \(String(bleManager.connectedPeripherals[0].braceletInfo.rssi))").padding()
+                    Text(bleManager.batteryLevelUpdated[0] ? "Connected to bracelet name: \(bleManager.connectedPeripherals[0].name)" : "")
+                    Text(bleManager.batteryLevelUpdated[0] ? "Battery level is: \(String(bleManager.connectedPeripherals[0].braceletInfo.batteryLevel))" : "No connected Bracelets yet.").padding()
+                    Text(bleManager.trackingStarted[0] ? "Current distance is \(bleManager.connectedPeripherals[0].braceletInfo.currentDistanceText)" : "")
+                    
+                    Button(action: {bleManager.connectedPeripherals[0].originalReference.readRSSI()}, label: {
+                        Text("Read Distance")
+                            .bold()
+                            .frame(width: 250,
+                                   height: 40,
+                                   alignment: .center)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                            .foregroundColor(Color.white)
+                    })
+                    
                     Section(header: Text("")) {
                         TextField("Childs Name...", text: $text)
                             .padding()
@@ -242,9 +259,10 @@ struct ContentView: View {
             }.background(Color.white.edgesIgnoringSafeArea(.all))
         }
     }
+    
     func rssiGetter() -> Int{
         if(listFlag == true){
-            let rssiInt = self.bleManager.scannedPeripherals[0].rssi
+            let rssiInt = self.bleManager.connectedPeripherals[0].rssi
             return rssiInt
         }
         else{
