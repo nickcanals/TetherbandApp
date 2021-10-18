@@ -15,6 +15,7 @@ struct Child: Identifiable {
     let name: String
     let inRange: String
     let wearing: String
+    var peripheral: Peripheral
 }
 
 class ChildViewModel: ObservableObject {
@@ -250,7 +251,7 @@ struct ContentView: View {
                     }
                     List{
                         ForEach(viewModel.kids) { kid in
-                            ChildRow(name: kid.name, range: kid.inRange, wear: kid.wearing, rSSI: kid.childRSSI)
+                            ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
                         }
                     }
                 }.background(Color.black)
@@ -274,8 +275,8 @@ struct ContentView: View {
         //guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
         //    return
         //}
-
-        let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "")
+        let kidIndex = bleManager.connectedPeripherals.count-1
+        let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "", peripheral: bleManager.connectedPeripherals[kidIndex])
         viewModel.kids.append(newKid)
         text = ""
     }
@@ -377,7 +378,7 @@ struct ChildRow: View {
     let name: String
     let range: String
     let wear: String
-    let rSSI: Int
+    let distance: String
     
     var body: some View {
         HStack{
@@ -393,7 +394,7 @@ struct ChildRow: View {
                 .minimumScaleFactor(1.0)
                 .frame(maxWidth: .infinity)
             Text("|")
-            Text("  \(rSSI)")
+            Text("  \(distance)")
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)

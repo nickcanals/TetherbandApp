@@ -152,8 +152,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     // Saves reference to connected peripheral
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("Connected Successfully!")
+        print("Connected Successfully to device: \(connectedPeripherals[connectedPeripherals.endIndex-1].name)!")
         let tetherServices = connectedPeripherals[connectedPeripherals.endIndex-1].UUIDS.getAllServices()
+        if connectedPeripherals.count > 1{
+            batteryLevelUpdated.append(false)
+            trackingStarted.append(false)// increase the size of flag array by one
+        }
         peripheral.discoverServices(tetherServices)
     }
     
