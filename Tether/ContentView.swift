@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreNFC
+import BackgroundTasks
 
 //Struct and Object for Child List 
 struct Child: Identifiable {
@@ -39,13 +40,14 @@ struct ContentView: View {
     
     //Child List Variables
     @StateObject var viewModel = ChildViewModel()
-    //@State var childListData = ""
+    @State var inputName = false
     @State var text = ""
     @State var listFlag = false
     
+    @State var logText = ""
     
-    @ObservedObject var bleManager = BLEManager()
-     
+    @ObservedObject var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
+    
     var body: some View {
         NavigationView{
             VStack{
@@ -139,6 +141,12 @@ struct ContentView: View {
                 }
                 .navigationBarTitle("")
                 .navigationBarHidden(true)
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in // detect app going to background
+                    bleManager.backgroundFlag = true // controls behavior of distance tracking timers
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in // detect app going to foreground
+                    bleManager.backgroundFlag = false
+                }
                 
                 HStack{
                     //NFC Config Section with code below
@@ -208,11 +216,24 @@ struct ContentView: View {
                     }
                 }
                 
+                TextField("Current Tested Distance: ", text: $logText).background(Color.black).padding()
+                Button(action: { print(bleManager.log.addDate(message: "DISTANCE_MARKER:\(logText)"), to: &bleManager.logFilePath!)
+                }, label: {
+                        Text("Write Distance Marker to Log")
+                            .bold()
+                            .frame(width: 250,
+                                   height: 40,
+                                   alignment: .center)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                            .foregroundColor(Color.white)
+                })
+                
                 //Spacer()
                 
                 VStack{
                     //Text("Battery level is: \(String(bleManager.connectedPeripherals[0].braceletInfo.rssi))").padding()
-                    Text(bleManager.batteryLevelUpdated[0] ? "Connected to bracelet name: \(bleManager.connectedPeripherals[0].name)" : "")
+                    /*Text(bleManager.batteryLevelUpdated[0] ? "Connected to bracelet name: \(bleManager.connectedPeripherals[0].name)" : "")
                     Text(bleManager.batteryLevelUpdated[0] ? "Battery level is: \(String(bleManager.connectedPeripherals[0].braceletInfo.batteryLevel))" : "No connected Bracelets yet.").padding()
                     Text(bleManager.trackingStarted[0] ? "Current distance is \(bleManager.connectedPeripherals[0].braceletInfo.currentDistanceText)" : "")
                     
@@ -225,7 +246,7 @@ struct ContentView: View {
                             .background(Color.blue)
                             .cornerRadius(8)
                             .foregroundColor(Color.white)
-                    })
+                    })*/
                     
                     Section(header: Text("")) {
                         TextField("Childs Name...", text: $text)
@@ -243,11 +264,11 @@ struct ContentView: View {
                                     .foregroundColor(Color.white)
                         })
                         
-                        Text("  Battery   |    Name    |    RSSI Value   |   |")
+                        //Text("  Battery   |    Name    |    RSSI Value   |   |")
+                            //.padding()
+                        Text(inputName ? "\nPlease input child's name." : "")
+                        Text("  Battery   |    Name    |    In Range    |    Bracelet On")
                             .padding()
-                        
-                        //Text("  Battery   |    Name    |    In Range    |    Bracelet On")
-                          //  .padding()
                     }
                     List{
                         ForEach(viewModel.kids) { kid in
@@ -272,10 +293,15 @@ struct ContentView: View {
     }
     
     func tryToAdd() {
-        //guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
-        //    return
-        //}
+        guard !text.isEmpty else {
+            inputName = true
+            return
+        }
+        if inputName{
+            inputName = false
+        }
         let kidIndex = bleManager.connectedPeripherals.count-1
+        bleManager.connectedPeripherals[kidIndex].originalReference.readRSSI()
         let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "", peripheral: bleManager.connectedPeripherals[kidIndex])
         viewModel.kids.append(newKid)
         text = ""
@@ -606,11 +632,11 @@ struct nfcButton : UIViewRepresentable {
 
 
 
-struct ContentView_Previews: PreviewProvider {
+/*struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .padding()
     }
-}
+}*/
 
 

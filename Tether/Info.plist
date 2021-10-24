@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NFCReaderUsageDescription</key>
-	<string>Used for connecting Bracelets to app</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -22,6 +20,12 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NFCReaderUsageDescription</key>
+	<string>Used for connecting Bracelets to app</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>&quot;App uses Bluetooth to connect to Tetherband bracelets&quot;</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>&quot;App uses Bluetooth to connect to Tetherband bracelets&quot;</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -29,6 +33,13 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+		<string>bluetooth-peripheral</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -48,13 +59,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>&quot;App uses Bluetooth to connect to Tetherband bracelets&quot;</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>&quot;App uses Bluetooth to connect to Tetherband bracelets&quot;</string>
-	<key>UIBackgroundModes</key>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>&quot;bluetooth-central&quot;</string>
+		<string>com.tetherband.distance-backgroundDistanceRefresh</string>
 	</array>
 </dict>
 </plist>

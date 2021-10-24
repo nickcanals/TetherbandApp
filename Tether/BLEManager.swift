@@ -89,6 +89,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var connectedPeripherals = [Peripheral]()
     @Published var batteryLevelUpdated: [Bool] = [false]
     @Published var trackingStarted: [Bool] = [false]
+    @Published var backgroundFlag = false // content view flips this to true when the user switches to another app or locks their phone. Allows distance to keep tracking in background
+    
     var scanAndConnectFlag = false
     var currentIdentifyUUID: String! // unique UUID value read from the NFC tag
     var includedServices: TetherbandUUIDS?
@@ -96,12 +98,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     let MAX_DISTANCE: Double = 15000 // given in mm. aka 15m.
     
     let distanceQueue = DispatchQueue(label: "com.tetherband.distance", qos: .userInteractive, attributes: .concurrent, autoreleaseFrequency: .workItem)
-        
-    override init() {
+    
+    var logFilePath: Logger? // logging
+    var log: LoggerFuncs = LoggerFuncs(date: true) // used to add date time stamp to prints written to file on phone.
+    
+    init(logger:Logger){
         super.init()
-        
         localCentral = CBCentralManager(delegate: self, queue: nil)
         localCentral.delegate = self
+        logFilePath = logger
     }
     
     // required to implement this function to use bluetooth. Checks that bluetooth is enabled on the device.
@@ -152,13 +157,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     // Saves reference to connected peripheral
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("Connected Successfully to device: \(connectedPeripherals[connectedPeripherals.endIndex-1].name)!")
+        print(log.addDate(message: "Connected Successfully to device: \(connectedPeripherals[connectedPeripherals.endIndex-1].name)!"), to: &logFilePath!)
         let tetherServices = connectedPeripherals[connectedPeripherals.endIndex-1].UUIDS.getAllServices()
         if connectedPeripherals.count > 1{
             batteryLevelUpdated.append(false)
             trackingStarted.append(false)// increase the size of flag array by one
         }
         peripheral.discoverServices(tetherServices)
+        print(log.addDate(message: "All services and characteristics setup successfully"), to: &logFilePath!)
     }
     
     // error handler in case connection fails
@@ -256,6 +262,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             if peripheral.isEqual(connectedPeripheral.originalReference){
                 let connectedPeripheralIndex = connectedPeripheral.id
                 switch characteristic.uuid{
+                
                 case connectedPeripheral.UUIDS.batteryLevelChar:
                     guard let firstByte = data.first else{
                         print("Data sent from battery characteristic is empty!")
@@ -263,9 +270,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     }
                     connectedPeripheral.braceletInfo.batteryLevel = Int(firstByte)
                     print("Number read from battery level update is: \(Int(firstByte))")
+                    if backgroundFlag{
+                        peripheral.readRSSI()
+                    }
                     batteryLevelUpdated[connectedPeripheralIndex] = true
+                    
                 case connectedPeripheral.UUIDS.identifyChar: // cap sense alerts here
                     print("Received read event from identify characteristic.")
+                    
                 case connectedPeripheral.UUIDS.txPowerChar:
                     guard let firstByte = data.first else{
                         print("Data sent from tx power characteristic is empty!")
@@ -274,6 +286,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     let txValue = Int8(bitPattern: UInt8(firstByte)) // have to do this to read the hex as signed
                     connectedPeripheral.braceletInfo.txPower = txValue
                     print("TX power read from tx power service is: \(txValue)")
+                    
                 default:
                     print("Some other read event happened.")
                 }
@@ -289,109 +302,44 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
-        /*self.distanceQueue.async {
-            for currentPeripheral in self.connectedPeripherals{
-                if peripheral.isEqual(currentPeripheral.originalReference){
-                    guard error == nil else{
-                        print("Error reading rssi from bracelet name: \(currentPeripheral.name) and id: \(currentPeripheral.identifyUUID[0].uuidString)")
-                        return
-                    }
-                    //NSLog("IN READ RSSI")
-                    if currentPeripheral.braceletInfo.rssiArr.count <= self.NUM_RSSI_SAMPLES{ // need more samples before averaging for distance
-                        if currentPeripheral.braceletInfo.distanceUpdateDone{
-                            currentPeripheral.braceletInfo.distanceUpdateDone = false
-                            //NSLog("CREATING CANCEL TIMER")
-                            let cancelTimer = DispatchSource.makeTimerSource(flags: .strict, queue: self.distanceQueue)
-                            cancelTimer.schedule(deadline: .now(), repeating: .milliseconds(50), leeway: .microseconds(0))
-                            cancelTimer.setEventHandler{
-                                if currentPeripheral.braceletInfo.rssiArr.count > self.NUM_RSSI_SAMPLES{
-                                    if !(currentPeripheral.braceletInfo.sampleRssiTimer?.isCancelled ?? true){
-                                        currentPeripheral.braceletInfo.sampleRssiTimer?.cancel()
-                                        //NSLog("SAMPLE TIMER CANCELLED")
-                                    }
-                                }
-                            }
-                            currentPeripheral.braceletInfo.stopSamplingTimer = cancelTimer
-                            currentPeripheral.braceletInfo.stopSamplingTimer?.resume()
-                            //NSLog("CREATING SAMPLE TIMER")
-                            let timer = DispatchSource.makeTimerSource(flags: .strict, queue: self.distanceQueue)
-                            timer.schedule(deadline: .now(), repeating: .milliseconds(1), leeway: .microseconds(0))
-                            timer.setEventHandler{
-                                currentPeripheral.braceletInfo.rssiArr.append(RSSI.intValue)
-                                peripheral.readRSSI()
-                                NSLog("IN SAMPLE TIMER, LEN OF RSSI ARR: \(currentPeripheral.braceletInfo.rssiArr.count)")
-                            }
-                            currentPeripheral.braceletInfo.sampleRssiTimer = timer
-                            currentPeripheral.braceletInfo.sampleRssiTimer?.resume()
-                        }
-                    }
-                    else{ // have correct number of samples and are ready to average for distance
-                        currentPeripheral.braceletInfo.stopSamplingTimer?.cancel() // stop sampling timer
-                        let rssiArr = currentPeripheral.braceletInfo.rssiArr
-                        let txPower = currentPeripheral.braceletInfo.txPower
-                        let rssi = rssiArr.reduce(0, +) / rssiArr.count
-                        currentPeripheral.braceletInfo.rssiArr.removeAll() // clear the array for next set of samples
-                        
-                        //print("Updating distance with RSSI and TX Values: \(rssi), \(txPower)")
-                        NSLog("Updating distance with RSSI and TX Values: %d, %d", rssi, txPower)
-                        self.updateDistance(rssi: rssi, txPower: Int(txPower), currentPeripheral: currentPeripheral)
-                        if currentPeripheral.braceletInfo.inRange{ // still in range
-                            //print("In in range block in did read rssi callback")
-                            currentPeripheral.braceletInfo.distanceUpdateDone = true
-                            let refreshTimer = DispatchSource.makeTimerSource(flags: .strict, queue: self.distanceQueue)
-                            refreshTimer.schedule(deadline: .now() + .seconds(3), repeating: .never, leeway: .milliseconds(0))
-                            refreshTimer.setEventHandler{
-                                peripheral.readRSSI()
-                                //NSLog("IN REFRESH TIMER, LEN OF RSSI ARR: \(currentPeripheral.braceletInfo.rssiArr.count)")
-                            }
-                            currentPeripheral.braceletInfo.refreshDistanceTimer = refreshTimer
-                            currentPeripheral.braceletInfo.refreshDistanceTimer?.resume()
-                        }
-                        else{ // out of range
-                            // STILL NEED Trigger phone notifications and alerts
-                            // STILL NEED write proper alerts to the proper bracelet characteristics
-                            print("In out of range block in did read rssi callback")
-                        }
-                    }
-                }
-            }
-        }*/
         for currentPeripheral in connectedPeripherals{
             if peripheral.isEqual(currentPeripheral.originalReference){
                 guard error == nil else{
                     print("Error reading rssi from bracelet name: \(currentPeripheral.name) and id: \(currentPeripheral.identifyUUID[0].uuidString)")
                     return
                 }
-                //NSLog("IN READ RSSI")
                 if currentPeripheral.braceletInfo.rssiArr.count <= NUM_RSSI_SAMPLES{ // need more samples before averaging for distance
                     if currentPeripheral.braceletInfo.distanceUpdateDone{
                         currentPeripheral.braceletInfo.distanceUpdateDone = false
-                        //NSLog("CREATING CANCEL TIMER")
+                        // Timer that after 50 ms stops the sampling timer running every millisecond.
                         let cancelTimer = DispatchSource.makeTimerSource(flags: .strict, queue: distanceQueue)
                         cancelTimer.schedule(deadline: .now(), repeating: .milliseconds(50), leeway: .microseconds(0))
                         cancelTimer.setEventHandler{
                             if currentPeripheral.braceletInfo.rssiArr.count > self.NUM_RSSI_SAMPLES{
                                 if !(currentPeripheral.braceletInfo.sampleRssiTimer?.isCancelled ?? true){
                                     currentPeripheral.braceletInfo.sampleRssiTimer?.cancel()
-                                    //NSLog("SAMPLE TIMER CANCELLED")
                                 }
                             }
                         }
                         currentPeripheral.braceletInfo.stopSamplingTimer = cancelTimer
                         currentPeripheral.braceletInfo.stopSamplingTimer?.resume()
-                        //NSLog("CREATING SAMPLE TIMER")
+                        
+                        // Timer to trigger an RSSI read every millisecond and add it to the array
                         let timer = DispatchSource.makeTimerSource(flags: .strict, queue: distanceQueue)
                         timer.schedule(deadline: .now(), repeating: .milliseconds(1), leeway: .microseconds(0))
                         timer.setEventHandler{
                             currentPeripheral.braceletInfo.rssiArr.append(RSSI.intValue)
                             peripheral.readRSSI()
-                            //NSLog("IN SAMPLE TIMER, LEN OF RSSI ARR: \(currentPeripheral.braceletInfo.rssiArr.count)")
                         }
                         currentPeripheral.braceletInfo.sampleRssiTimer = timer
                         currentPeripheral.braceletInfo.sampleRssiTimer?.resume()
                     }
                 }
                 else{ // have correct number of samples and are ready to average for distance
+                    if backgroundFlag{
+                        NSLog("IN BACKGROUND")
+                    }
+                    
                     currentPeripheral.braceletInfo.stopSamplingTimer?.cancel() // stop sampling timer
                     let rssiArr = currentPeripheral.braceletInfo.rssiArr
                     let txPower = currentPeripheral.braceletInfo.txPower
@@ -399,17 +347,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     currentPeripheral.braceletInfo.rssiArr.removeAll() // clear the array for next set of samples
                     
                     let currentPeripheralIndex = currentPeripheral.id
-                    //print("Updating distance with RSSI and TX Values: \(rssi), \(txPower)")
+                    
                     NSLog("Updating distance with RSSI and TX Values: %d, %d", rssi, txPower)
+                    print(log.addDate(message: "Bracelet:\(currentPeripheral.name),Updating_Distance,RSSI_is:\(rssi)"), to: &logFilePath!)
                     if updateDistance(rssi: rssi, txPower: Int(txPower), currentPeripheral: currentPeripheral){ // still in range
-                        //print("In in range block in did read rssi callback")
+                        
                         trackingStarted[currentPeripheralIndex] = true // let the UI know we have started tracking
                         currentPeripheral.braceletInfo.distanceUpdateDone = true
+                        // Timer to have the sampling process start again in 3 seconds.
                         let refreshTimer = DispatchSource.makeTimerSource(flags: .strict, queue: distanceQueue)
                         refreshTimer.schedule(deadline: .now() + .seconds(3), repeating: .never, leeway: .milliseconds(0))
                         refreshTimer.setEventHandler{
                             peripheral.readRSSI()
-                            //NSLog("IN REFRESH TIMER, LEN OF RSSI ARR: \(currentPeripheral.braceletInfo.rssiArr.count)")
                         }
                         currentPeripheral.braceletInfo.refreshDistanceTimer = refreshTimer
                         currentPeripheral.braceletInfo.refreshDistanceTimer?.resume()
@@ -427,26 +376,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     // Function taken from Nordic Toolbox for iOS
     func updateDistance(rssi: Int, txPower: Int, currentPeripheral: Peripheral) -> Bool{
-        /*self.distanceQueue.async{
-            let distance = pow(10, (Double(txPower - rssi) / 20.0))
-            let distanceUnitVal = Measurement<UnitLength>(value: distance, unit: .millimeters)
-            let formatter = MeasurementFormatter()
-            let numberFormatter = NumberFormatter()
-            numberFormatter.maximumFractionDigits = 2
-            formatter.numberFormatter = numberFormatter
-            formatter.unitOptions = .naturalScale
-            currentPeripheral.braceletInfo.currentDistanceText = formatter.string(from: distanceUnitVal)
-            currentPeripheral.braceletInfo.currentDistanceNum = distance
-            print("Formatted distance from update distance function is: \(currentPeripheral.braceletInfo.currentDistanceText)")
-            if distance > self.MAX_DISTANCE{
-                currentPeripheral.braceletInfo.inRange = false
-                print("Distance of \(distance) mm determined OUT OF RANGE in update distance function")
-            }
-            else{
-                currentPeripheral.braceletInfo.inRange = true
-                print("Distance of \(distance) mm determined IN RANGE in update distance function")
-            }
-        }*/
         let distance = pow(10, (Double(txPower - rssi) / 20.0))
         let distanceUnitVal = Measurement<UnitLength>(value: distance, unit: .millimeters)
         let formatter = MeasurementFormatter()
@@ -457,13 +386,16 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         currentPeripheral.braceletInfo.currentDistanceText = formatter.string(from: distanceUnitVal)
         currentPeripheral.braceletInfo.currentDistanceNum = distance
         print("Formatted distance from update distance function is: \(currentPeripheral.braceletInfo.currentDistanceText)")
+        
         if distance > MAX_DISTANCE{
             currentPeripheral.braceletInfo.inRange = false
+            print(log.addDate(message: "Bracelet:\(currentPeripheral.name),OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
             print("Distance of \(distance) mm determined OUT OF RANGE in update distance function")
             return false
         }
         else{
             currentPeripheral.braceletInfo.inRange = true
+            print(log.addDate(message: "Bracelet:\(currentPeripheral.name),IN_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
             print("Distance of \(distance) mm determined IN RANGE in update distance function")
             return true
         }
@@ -478,6 +410,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         debugString += "--"
         return debugString
     }
+    
+  
     
     /*// start scanning for devices advertising service matching custom UUID variable. This is the value that the NFC tag will send to the iphone.
     func startScan(){
