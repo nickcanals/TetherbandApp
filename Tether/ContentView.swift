@@ -8,6 +8,8 @@
 import SwiftUI
 import CoreNFC
 import BackgroundTasks
+import AVKit
+import UserNotifications
 
 //Struct and Object for Child List 
 struct Child: Identifiable {
@@ -45,6 +47,9 @@ struct ContentView: View {
     @State var listFlag = false
     
     @State var logText = ""
+    
+    @State var outOfRangeAudio: AVAudioPlayer! // Was used with the 
+    @State var notificationsEnabled = false
     
     @ObservedObject var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
     
@@ -143,9 +148,36 @@ struct ContentView: View {
                 .navigationBarHidden(true)
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in // detect app going to background
                     bleManager.backgroundFlag = true // controls behavior of distance tracking timers
+                    for peripheral in bleManager.connectedPeripherals{
+                        peripheral.originalReference.setNotifyValue(true, for: peripheral.characteristicHandles.identifyWriteChar)
+                    }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in // detect app going to foreground
                     bleManager.backgroundFlag = false
+                    for peripheral in bleManager.connectedPeripherals{
+                        peripheral.originalReference.setNotifyValue(false, for: peripheral.characteristicHandles.identifyWriteChar)
+                    }
+                }
+                Section{
+                    Button(action: {
+                            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { success, error in
+                                if success {
+                                    print("All set!")
+                                    print("notification center value is: \(UNUserNotificationCenter.current().description)")
+                                    notificationsEnabled = true
+                                } else if let error = error {
+                                    print(error.localizedDescription)
+                                }
+                    }}, label: {
+                        Text("Enable Notifications")
+                            .bold()
+                            .frame(width: notificationsEnabled ? 0 : 150,
+                                   height: notificationsEnabled ? 0 : 50,
+                                   alignment: .center)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                            .foregroundColor(Color.white)
+                    })
                 }
                 
                 HStack{
@@ -275,7 +307,8 @@ struct ContentView: View {
                             ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
                         }
                     }
-                }.background(Color.black)
+                }
+                .background(Color.black)
                 
                 Spacer()
             }.background(Color.white.edgesIgnoringSafeArea(.all))
@@ -303,9 +336,11 @@ struct ContentView: View {
         let kidIndex = bleManager.connectedPeripherals.count-1
         bleManager.connectedPeripherals[kidIndex].originalReference.readRSSI()
         let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "", peripheral: bleManager.connectedPeripherals[kidIndex])
+        bleManager.connectedPeripherals[kidIndex].braceletInfo.kidName = text
         viewModel.kids.append(newKid)
         text = ""
     }
+    
 }
 
 //Color Dropdown Code
@@ -631,12 +666,11 @@ struct nfcButton : UIViewRepresentable {
 }
 
 
-
-/*struct ContentView_Previews: PreviewProvider {
+struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .padding()
     }
-}*/
+}
 
 

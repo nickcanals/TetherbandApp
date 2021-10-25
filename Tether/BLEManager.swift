@@ -7,10 +7,11 @@
 
 import Foundation
 import CoreBluetooth
+import UserNotifications
 
 struct Peripheral: Identifiable{
     let id: Int
-    let name: String
+    let deviceName: String
     let rssi: Int
     let manufData: Int
     let debug: String
@@ -27,10 +28,11 @@ struct Peripheral: Identifiable{
 
 class TetherbandInfo{
     var rssiArr: [Int]
+    var kidName: String
     var batteryLevel: Int
     var braceletOn: Bool
     var txPower: Int8
-    var distanceUpdateDone: Bool
+   // var distanceUpdateDone: Bool
     var inRange: Bool
     var currentDistanceText: String
     var currentDistanceNum: Double
@@ -44,10 +46,11 @@ class TetherbandInfo{
         self.batteryLevel = 100
         self.braceletOn = false
         self.txPower = 0
-        self.distanceUpdateDone = true
+      //  self.distanceUpdateDone = true
         self.inRange = true
         self.currentDistanceText = ""
         self.currentDistanceNum = 0.0
+        self.kidName = ""
     }
 }
 
@@ -83,7 +86,7 @@ class TetherbandUUIDS{
 }
 
 
-class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate, UNUserNotificationCenterDelegate {
     var localCentral: CBCentralManager!
     @Published var isOn = false
     @Published var connectedPeripherals = [Peripheral]()
@@ -95,7 +98,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     var currentIdentifyUUID: String! // unique UUID value read from the NFC tag
     var includedServices: TetherbandUUIDS?
     let NUM_RSSI_SAMPLES = 20 // num of rssi samples to take before averaging.
-    let MAX_DISTANCE: Double = 15000 // given in mm. aka 15m.
+    let MAX_DISTANCE: Double = 3000 // given in mm. aka 15m.
     
     let distanceQueue = DispatchQueue(label: "com.tetherband.distance", qos: .userInteractive, attributes: .concurrent, autoreleaseFrequency: .workItem)
     
@@ -144,7 +147,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         
         let newPeripheralUUIDS = TetherbandUUIDS(identify: CBUUID.init(string: currentIdentifyUUID))
         
-        let newPeripheral = Peripheral(id: connectedPeripherals.count, name: peripheralName, rssi: RSSI.intValue, manufData: manufDataInt, debug: peripheralManufData, originalReference: peripheral, identifyUUID: [newPeripheralUUIDS.identifyService], UUIDS: newPeripheralUUIDS)
+        let newPeripheral = Peripheral(id: connectedPeripherals.count, deviceName: peripheralName, rssi: RSSI.intValue, manufData: manufDataInt, debug: peripheralManufData, originalReference: peripheral, identifyUUID: [newPeripheralUUIDS.identifyService], UUIDS: newPeripheralUUIDS)
         newPeripheral.setPeripheralDelegate(delegate: self)
         
         // Set up timer for getting distance values
@@ -157,7 +160,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     // Saves reference to connected peripheral
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print(log.addDate(message: "Connected Successfully to device: \(connectedPeripherals[connectedPeripherals.endIndex-1].name)!"), to: &logFilePath!)
+        print(log.addDate(message: "Connected Successfully to device: \(connectedPeripherals[connectedPeripherals.endIndex-1].deviceName)!"), to: &logFilePath!)
         let tetherServices = connectedPeripherals[connectedPeripherals.endIndex-1].UUIDS.getAllServices()
         if connectedPeripherals.count > 1{
             batteryLevelUpdated.append(false)
@@ -261,28 +264,30 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         for connectedPeripheral in connectedPeripherals{
             if peripheral.isEqual(connectedPeripheral.originalReference){
                 let connectedPeripheralIndex = connectedPeripheral.id
+                guard let firstByte = data.first else{
+                    print("Data sent from characteristic: \(characteristic.description) is empty!")
+                    return
+                }
                 switch characteristic.uuid{
                 
                 case connectedPeripheral.UUIDS.batteryLevelChar:
-                    guard let firstByte = data.first else{
-                        print("Data sent from battery characteristic is empty!")
-                        return
-                    }
                     connectedPeripheral.braceletInfo.batteryLevel = Int(firstByte)
                     print("Number read from battery level update is: \(Int(firstByte))")
-                    if backgroundFlag{
+                    /*if backgroundFlag{
                         peripheral.readRSSI()
-                    }
+                    }*/
                     batteryLevelUpdated[connectedPeripheralIndex] = true
                     
                 case connectedPeripheral.UUIDS.identifyChar: // cap sense alerts here
-                    print("Received read event from identify characteristic.")
+                    if Int(firstByte) == 1{ // background distance notification
+                        print("Received Background Distance Notification.")
+                        peripheral.readRSSI()
+                    }
+                    else if Int(firstByte) == 2{
+                        print("Cap Sense alert goes here")
+                    }
                     
                 case connectedPeripheral.UUIDS.txPowerChar:
-                    guard let firstByte = data.first else{
-                        print("Data sent from tx power characteristic is empty!")
-                        return
-                    }
                     let txValue = Int8(bitPattern: UInt8(firstByte)) // have to do this to read the hex as signed
                     connectedPeripheral.braceletInfo.txPower = txValue
                     print("TX power read from tx power service is: \(txValue)")
@@ -305,12 +310,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         for currentPeripheral in connectedPeripherals{
             if peripheral.isEqual(currentPeripheral.originalReference){
                 guard error == nil else{
-                    print("Error reading rssi from bracelet name: \(currentPeripheral.name) and id: \(currentPeripheral.identifyUUID[0].uuidString)")
+                    print("Error reading rssi from bracelet name: \(currentPeripheral.deviceName) and id: \(currentPeripheral.identifyUUID[0].uuidString)")
                     return
                 }
                 if currentPeripheral.braceletInfo.rssiArr.count <= NUM_RSSI_SAMPLES{ // need more samples before averaging for distance
-                    if currentPeripheral.braceletInfo.distanceUpdateDone{
-                        currentPeripheral.braceletInfo.distanceUpdateDone = false
                         // Timer that after 50 ms stops the sampling timer running every millisecond.
                         let cancelTimer = DispatchSource.makeTimerSource(flags: .strict, queue: distanceQueue)
                         cancelTimer.schedule(deadline: .now(), repeating: .milliseconds(50), leeway: .microseconds(0))
@@ -333,7 +336,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         }
                         currentPeripheral.braceletInfo.sampleRssiTimer = timer
                         currentPeripheral.braceletInfo.sampleRssiTimer?.resume()
-                    }
                 }
                 else{ // have correct number of samples and are ready to average for distance
                     if backgroundFlag{
@@ -349,11 +351,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     let currentPeripheralIndex = currentPeripheral.id
                     
                     NSLog("Updating distance with RSSI and TX Values: %d, %d", rssi, txPower)
-                    print(log.addDate(message: "Bracelet:\(currentPeripheral.name),Updating_Distance,RSSI_is:\(rssi)"), to: &logFilePath!)
+                    print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),Updating_Distance,RSSI_is:\(rssi)"), to: &logFilePath!)
                     if updateDistance(rssi: rssi, txPower: Int(txPower), currentPeripheral: currentPeripheral){ // still in range
-                        
                         trackingStarted[currentPeripheralIndex] = true // let the UI know we have started tracking
-                        currentPeripheral.braceletInfo.distanceUpdateDone = true
                         // Timer to have the sampling process start again in 3 seconds.
                         let refreshTimer = DispatchSource.makeTimerSource(flags: .strict, queue: distanceQueue)
                         refreshTimer.schedule(deadline: .now() + .seconds(3), repeating: .never, leeway: .milliseconds(0))
@@ -365,7 +365,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     }
                     else{ // out of range
                         trackingStarted[currentPeripheralIndex] = true // let the UI know we have started tracking
-                        // STILL NEED Trigger phone notifications and alerts
+                        create_notification(type: "Out of Range", peripheral: currentPeripheral)
+                        // STILL NEED refresh distance timer, make alert repeat on an interval
                         // STILL NEED write proper alerts to the proper bracelet characteristics
                         print("In out of range block in did read rssi callback")
                     }
@@ -389,16 +390,36 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         
         if distance > MAX_DISTANCE{
             currentPeripheral.braceletInfo.inRange = false
-            print(log.addDate(message: "Bracelet:\(currentPeripheral.name),OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
+            print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
             print("Distance of \(distance) mm determined OUT OF RANGE in update distance function")
             return false
         }
         else{
             currentPeripheral.braceletInfo.inRange = true
-            print(log.addDate(message: "Bracelet:\(currentPeripheral.name),IN_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
+            print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),IN_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
             print("Distance of \(distance) mm determined IN RANGE in update distance function")
             return true
         }
+    }
+    
+    func create_notification(type: String, peripheral: Peripheral){
+        UNUserNotificationCenter.current().delegate = self
+        let content = UNMutableNotificationContent()
+        switch (type){
+        case "Out of Range":
+            content.title = "\(peripheral.braceletInfo.kidName) is out of range! Please find them ASAP!"
+            content.sound = UNNotificationSound.init(named: UNNotificationSoundName(rawValue: "hoobastank_running_away.mp3"))
+        default:
+            print("in default of create notification function")
+        }
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        let request = UNNotificationRequest(identifier: peripheral.deviceName, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+        print("notification center value is: \(UNUserNotificationCenter.current().description)")
+    }
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.alert, .sound])
     }
     
     // debug function to print out the contents of manufacturer data in advertisement packets
@@ -410,8 +431,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         debugString += "--"
         return debugString
     }
-    
-  
     
     /*// start scanning for devices advertising service matching custom UUID variable. This is the value that the NFC tag will send to the iphone.
     func startScan(){
