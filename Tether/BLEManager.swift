@@ -16,6 +16,7 @@ struct Peripheral: Identifiable{
     let manufData: Int
     let debug: String
     let originalReference: CBPeripheral
+    let coreBluetoothID: UUID
     let identifyUUID: [CBUUID] // for storing each tetherband's unique identify uuid value
     var UUIDS: TetherbandUUIDS //
     var characteristicHandles = TetherbandCharHandles() // handles used to read/write to characteristics
@@ -28,12 +29,13 @@ struct Peripheral: Identifiable{
 
 class TetherbandInfo{
     var rssiArr: [Int]
+    //var rssiArr: [Float]
     var kidName: String
     var batteryLevel: Int
     var braceletOn: Bool
     var txPower: Int8
-   // var distanceUpdateDone: Bool
     var inRange: Bool
+    var disconnected: Bool // used in reconnecting after disconnect
     var currentDistanceText: String
     var currentDistanceNum: Double
     var sampleRssiTimer: DispatchSourceTimer?
@@ -46,11 +48,11 @@ class TetherbandInfo{
         self.batteryLevel = 100
         self.braceletOn = false
         self.txPower = 0
-      //  self.distanceUpdateDone = true
         self.inRange = true
         self.currentDistanceText = ""
         self.currentDistanceNum = 0.0
         self.kidName = ""
+        self.disconnected = false
     }
 }
 
@@ -83,6 +85,10 @@ class TetherbandUUIDS{
         let allServices: [CBUUID] = [immediateAlertService, txPowerService, linkLossService, batteryLevelService, identifyService]
         return allServices
     }
+    
+    func copyIdentifyChar(identifyChar: CBUUID){
+        self.identifyChar = identifyChar
+    }
 }
 
 
@@ -94,22 +100,28 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var trackingStarted: [Bool] = [false]
     @Published var backgroundFlag = false // content view flips this to true when the user switches to another app or locks their phone. Allows distance to keep tracking in background
     
-    var scanAndConnectFlag = false
     var currentIdentifyUUID: String! // unique UUID value read from the NFC tag
     var includedServices: TetherbandUUIDS?
     let NUM_RSSI_SAMPLES = 20 // num of rssi samples to take before averaging.
-    let MAX_DISTANCE: Double = 3000 // given in mm. aka 15m.
+    let MAX_DISTANCE: Double = 1000 // given in mm. aka 15m.
     
     let distanceQueue = DispatchQueue(label: "com.tetherband.distance", qos: .userInteractive, attributes: .concurrent, autoreleaseFrequency: .workItem)
     
     var logFilePath: Logger? // logging
     var log: LoggerFuncs = LoggerFuncs(date: true) // used to add date time stamp to prints written to file on phone.
+    var outOfRangeCount = 0 // used to schedule notifications when bracelet is out of range
+    
+    var contentViewChildList: ChildViewModel? // have to store a reference to child view list from content view so we can delete/add entries on ble events
     
     init(logger:Logger){
         super.init()
         localCentral = CBCentralManager(delegate: self, queue: nil)
         localCentral.delegate = self
         logFilePath = logger
+    }
+    
+    func setChildList(list: ChildViewModel){
+        self.contentViewChildList = list
     }
     
     // required to implement this function to use bluetooth. Checks that bluetooth is enabled on the device.
@@ -128,6 +140,23 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let peripheralManufDataList = advertisementData[CBAdvertisementDataManufacturerDataKey].customMirror
         var peripheralManufData: String
         var manufDataInt: Int
+        var alreadyExists: Bool = false
+        var id: Int = connectedPeripherals.count
+        
+        if let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String{
+            peripheralName = name
+        }
+        else{
+            peripheralName = "Unknown"
+        }
+        
+        for connectedPeripheral in connectedPeripherals{ // handle reconnect behavior if bracelets disconnect
+            if peripheralName == connectedPeripheral.deviceName{
+                alreadyExists = true
+                id = connectedPeripheral.id
+                break
+            }
+        }
         
         if let data = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Int{
             manufDataInt = data
@@ -138,58 +167,79 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         
         peripheralManufData = convertMirror(mirror: peripheralManufDataList)
         
-        if let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String{
-            peripheralName = name
-        }
-        else{
-            peripheralName = "Unknown"
-        }
-        
         let newPeripheralUUIDS = TetherbandUUIDS(identify: CBUUID.init(string: currentIdentifyUUID))
         
-        let newPeripheral = Peripheral(id: connectedPeripherals.count, deviceName: peripheralName, rssi: RSSI.intValue, manufData: manufDataInt, debug: peripheralManufData, originalReference: peripheral, identifyUUID: [newPeripheralUUIDS.identifyService], UUIDS: newPeripheralUUIDS)
+        let newPeripheral = Peripheral(id: id, deviceName: peripheralName, rssi: RSSI.intValue, manufData: manufDataInt, debug: peripheralManufData, originalReference: peripheral, coreBluetoothID: peripheral.identifier, identifyUUID: [newPeripheralUUIDS.identifyService], UUIDS: newPeripheralUUIDS)
         newPeripheral.setPeripheralDelegate(delegate: self)
         
-        // Set up timer for getting distance values
-        //newPeripheral.setDistanceTimer(queue: distanceQueue)
-        print(newPeripheral)
-        connectedPeripherals.append(newPeripheral)
-        
+        //print(newPeripheral)
+        if !alreadyExists{
+            connectedPeripherals.append(newPeripheral)
+        }
         localCentral.connect(peripheral, options: nil)
     }
     
     // Saves reference to connected peripheral
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print(log.addDate(message: "Connected Successfully to device: \(connectedPeripherals[connectedPeripherals.endIndex-1].deviceName)!"), to: &logFilePath!)
-        let tetherServices = connectedPeripherals[connectedPeripherals.endIndex-1].UUIDS.getAllServices()
-        if connectedPeripherals.count > 1{
-            batteryLevelUpdated.append(false)
-            trackingStarted.append(false)// increase the size of flag array by one
+        for connectedPeripheral in connectedPeripherals{
+            if peripheral.isEqual(connectedPeripheral.originalReference){
+                if connectedPeripheral.braceletInfo.disconnected{
+                    print("Successfully reconnected to device: \(connectedPeripheral.deviceName)")
+                    print(log.addDate(message: "Bracelet Name: \(connectedPeripheral.deviceName) Reconnected."), to: &logFilePath!)
+                    connectedPeripheral.braceletInfo.disconnected = false
+                    if trackingStarted[connectedPeripheral.id]{ // if we were tracking distance when got disconnected, restart tracking
+                        connectedPeripheral.originalReference.readRSSI()
+                    }
+                }
+                else{
+                    print(log.addDate(message: "Connected Successfully to device: \(connectedPeripherals[connectedPeripherals.endIndex-1].deviceName)!"), to: &logFilePath!)
+                    print("Connected Successfully to device: \(connectedPeripherals[connectedPeripherals.endIndex-1].deviceName)")
+                    let tetherServices = connectedPeripherals[connectedPeripherals.endIndex-1].UUIDS.getAllServices()
+                    if connectedPeripherals.count > 1{
+                        batteryLevelUpdated.append(false)
+                        trackingStarted.append(false)// increase the size of flag array by one
+                    }
+                    peripheral.discoverServices(tetherServices)
+                    print(log.addDate(message: "All services and characteristics setup successfully"), to: &logFilePath!)
+                    create_notification(type: "Bluetooth connected", peripheral: connectedPeripheral)
+                }
+            }
         }
-        peripheral.discoverServices(tetherServices)
-        print(log.addDate(message: "All services and characteristics setup successfully"), to: &logFilePath!)
     }
     
     // error handler in case connection fails
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         print("Couldn't connect to \(String(describing: peripheral.name))")
+        create_notification(type: "Bluetooth failed to connect", peripheral: connectedPeripherals[connectedPeripherals.endIndex-1])
         connectedPeripherals.remove(at: connectedPeripherals.endIndex-1) // remove from the connected peripherals array
     }
     
     
     func scanAndConnect(){
-        scanAndConnectFlag = true
         currentIdentifyUUID = "B0201F39-97BC-A2F5-4621-C9AB58C9BFCA"
         let customUUID: [CBUUID] = [CBUUID.init(string: "B0201F39-97BC-A2F5-4621-C9AB58C9BFCA")]
         localCentral.scanForPeripherals(withServices: customUUID, options: nil)
     }
     
-    func scanAndConnect(read_uuid: String){
-        scanAndConnectFlag = true
+    func scanAndConnect(read_uuid: String, disconnected: Bool){
         currentIdentifyUUID = read_uuid
-        currentIdentifyUUID.remove(at: currentIdentifyUUID.startIndex)
+        if !disconnected{
+            currentIdentifyUUID.remove(at: currentIdentifyUUID.startIndex)
+        }
         let customUUID : [CBUUID] = [CBUUID.init(string: currentIdentifyUUID)]
         localCentral.scanForPeripherals(withServices: customUUID, options: nil)
+    }
+    
+    //STILL NEED: Handle cases when reconnect fails
+    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        for connectedPeripheral in connectedPeripherals{
+            if peripheral.identifier == connectedPeripheral.coreBluetoothID{
+                print(log.addDate(message: "Bracelet Name: \(connectedPeripheral.deviceName) Disconnected! Previous Distance: \(connectedPeripheral.braceletInfo.currentDistanceText)"), to: &logFilePath!)
+                let reconnectUUID = connectedPeripheral.identifyUUID[0].uuidString
+                connectedPeripheral.braceletInfo.disconnected = true
+                self.scanAndConnect(read_uuid: reconnectUUID, disconnected: true)
+            }
+        }
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -247,11 +297,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         default:
             print("Services case statement to discover characteristics failed for service: \(service.description).")
         }
-        
-        /*if service.uuid.isEqual(connectedPeripherals[connectedPeripherals.endIndex].identifyUUID[0]){ // if identify service is being read
-            connectedPeripherals[connectedPeripherals.endIndex].UUIDS.identifyChar = characteristics[0].uuid // set identify characteristic uuid
-            connectedPeripherals[connectedPeripherals.endIndex].characteristicHandles?.identifyWriteChar = characteristics[0]
-        }*/
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -273,9 +318,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 case connectedPeripheral.UUIDS.batteryLevelChar:
                     connectedPeripheral.braceletInfo.batteryLevel = Int(firstByte)
                     print("Number read from battery level update is: \(Int(firstByte))")
-                    /*if backgroundFlag{
-                        peripheral.readRSSI()
-                    }*/
                     batteryLevelUpdated[connectedPeripheralIndex] = true
                     
                 case connectedPeripheral.UUIDS.identifyChar: // cap sense alerts here
@@ -303,6 +345,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard error == nil else {
             print("Did not write characteristic \(characteristic.description), error: \(error.debugDescription)")
             return
+        }
+        for connectedPeripheral in connectedPeripherals{
+            if peripheral.isEqual(connectedPeripheral.originalReference){
+                print("Wrote value to Bracelet Name: \(connectedPeripheral.deviceName) in \(characteristic.debugDescription)")
+            }
         }
     }
     
@@ -332,6 +379,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         timer.schedule(deadline: .now(), repeating: .milliseconds(1), leeway: .microseconds(0))
                         timer.setEventHandler{
                             currentPeripheral.braceletInfo.rssiArr.append(RSSI.intValue)
+                            //currentPeripheral.braceletInfo.rssiArr.append(RSSI.intValue)
                             peripheral.readRSSI()
                         }
                         currentPeripheral.braceletInfo.sampleRssiTimer = timer
@@ -345,6 +393,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     currentPeripheral.braceletInfo.stopSamplingTimer?.cancel() // stop sampling timer
                     let rssiArr = currentPeripheral.braceletInfo.rssiArr
                     let txPower = currentPeripheral.braceletInfo.txPower
+                    //let rssi = rssiArr.reduce(0.0, +) / Float(rssiArr.count)
                     let rssi = rssiArr.reduce(0, +) / rssiArr.count
                     currentPeripheral.braceletInfo.rssiArr.removeAll() // clear the array for next set of samples
                     
@@ -354,6 +403,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),Updating_Distance,RSSI_is:\(rssi)"), to: &logFilePath!)
                     if updateDistance(rssi: rssi, txPower: Int(txPower), currentPeripheral: currentPeripheral){ // still in range
                         trackingStarted[currentPeripheralIndex] = true // let the UI know we have started tracking
+                        
+                        if outOfRangeCount != 0{
+                            outOfRangeCount = 0
+                            remove_notifications(type: "Out of Range", peripheral: currentPeripheral)
+                        }
+                        
                         // Timer to have the sampling process start again in 3 seconds.
                         let refreshTimer = DispatchSource.makeTimerSource(flags: .strict, queue: distanceQueue)
                         refreshTimer.schedule(deadline: .now() + .seconds(3), repeating: .never, leeway: .milliseconds(0))
@@ -365,10 +420,28 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     }
                     else{ // out of range
                         trackingStarted[currentPeripheralIndex] = true // let the UI know we have started tracking
-                        create_notification(type: "Out of Range", peripheral: currentPeripheral)
-                        // STILL NEED refresh distance timer, make alert repeat on an interval
-                        // STILL NEED write proper alerts to the proper bracelet characteristics
-                        print("In out of range block in did read rssi callback")
+                        
+                        if outOfRangeCount == 0{
+                            create_notification(type: "Out of Range", peripheral: currentPeripheral)
+                        }
+                        outOfRangeCount += 1 // need to create new notification once every 13 seconds (length of audio)
+                        print("Out of Range counter is: \(outOfRangeCount)")
+                        if outOfRangeCount == 52{
+                            outOfRangeCount = 0
+                        }
+                        // Create timer to check distance again in 200 ms
+                        let refreshTimer = DispatchSource.makeTimerSource(flags: .strict, queue: distanceQueue)
+                        refreshTimer.schedule(deadline: .now(), repeating: .never, leeway: .milliseconds(0))
+                        refreshTimer.setEventHandler{
+                            peripheral.readRSSI()
+                        }
+                        currentPeripheral.braceletInfo.refreshDistanceTimer = refreshTimer
+                        currentPeripheral.braceletInfo.refreshDistanceTimer?.resume()
+                        
+                        // Write value to bracelet to trigger out of range alerts
+                        var val: UInt8 = 3
+                        let outOfRangeValue = Data(bytes: &val, count: 1)
+                        currentPeripheral.originalReference.writeValue(outOfRangeValue, for: currentPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
                     }
                 }
             }
@@ -377,6 +450,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     // Function taken from Nordic Toolbox for iOS
     func updateDistance(rssi: Int, txPower: Int, currentPeripheral: Peripheral) -> Bool{
+    //func updateDistance(rssi: Float, txPower: Int, currentPeripheral: Peripheral) -> Bool{
         let distance = pow(10, (Double(txPower - rssi) / 20.0))
         let distanceUnitVal = Measurement<UnitLength>(value: distance, unit: .millimeters)
         let formatter = MeasurementFormatter()
@@ -386,7 +460,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         formatter.unitOptions = .naturalScale
         currentPeripheral.braceletInfo.currentDistanceText = formatter.string(from: distanceUnitVal)
         currentPeripheral.braceletInfo.currentDistanceNum = distance
-        print("Formatted distance from update distance function is: \(currentPeripheral.braceletInfo.currentDistanceText)")
+        print("Bracelet name \(currentPeripheral.deviceName): Formatted distance from update distance function is: \(currentPeripheral.braceletInfo.currentDistanceText)")
         
         if distance > MAX_DISTANCE{
             currentPeripheral.braceletInfo.inRange = false
@@ -402,20 +476,36 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
     
+    // Creates a notification for given type associated with given peripheral
+    // STILL NEED: Add case for bracelet removed behavior
     func create_notification(type: String, peripheral: Peripheral){
         UNUserNotificationCenter.current().delegate = self
         let content = UNMutableNotificationContent()
         switch (type){
         case "Out of Range":
+            content.targetContentIdentifier = "\(type): \(peripheral.braceletInfo.kidName)"
             content.title = "\(peripheral.braceletInfo.kidName) is out of range! Please find them ASAP!"
             content.sound = UNNotificationSound.init(named: UNNotificationSoundName(rawValue: "hoobastank_running_away.mp3"))
+        case "Bluetooth connected":
+            content.targetContentIdentifier = "\(type) to \(peripheral.deviceName)"
+            content.title = "\(type) to \(peripheral.deviceName)!"
+        case "Bluetooth failed to connect":
+            content.targetContentIdentifier = "\(type) to \(peripheral.deviceName)"
+            content.title = "\(type) to \(peripheral.deviceName)!"
         default:
             print("in default of create notification function")
         }
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
         let request = UNNotificationRequest(identifier: peripheral.deviceName, content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request)
-        print("notification center value is: \(UNUserNotificationCenter.current().description)")
+    }
+    
+    // Cancels and removes any pending notifications associated with given peripheral and identifier type.
+    // Called when bracelet goes back in range or is put back on
+    func remove_notifications(type: String, peripheral: Peripheral){
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["\(type): \(peripheral.braceletInfo.kidName)"])
+        center.removeDeliveredNotifications(withIdentifiers: ["\(type): \(peripheral.braceletInfo.kidName)"])
     }
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {

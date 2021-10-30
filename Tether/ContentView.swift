@@ -42,6 +42,7 @@ struct ContentView: View {
     
     //Child List Variables
     @StateObject var viewModel = ChildViewModel()
+    //var viewModel: ChildViewModel // initialized at top level of app in TetherApp.swift to allow list view of children to update properly on ble reconnect after disconnect
     @State var inputName = false
     @State var text = ""
     @State var listFlag = false
@@ -49,9 +50,15 @@ struct ContentView: View {
     @State var logText = ""
     
     @State var outOfRangeAudio: AVAudioPlayer! // Was used with the 
-    @State var notificationsEnabled = false
+    @State var notificationsEnabled = true
     
     @ObservedObject var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
+    //@ObservedObject var bleManager: BLEManager // initialized at top level of app in TetherApp.swift
+    
+    /*init(viewModel: ChildViewModel, bleManager: BLEManager){
+        self.viewModel = viewModel
+        self.bleManager = bleManager
+    }*/
     
     var body: some View {
         NavigationView{
@@ -149,21 +156,24 @@ struct ContentView: View {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in // detect app going to background
                     bleManager.backgroundFlag = true // controls behavior of distance tracking timers
                     for peripheral in bleManager.connectedPeripherals{
-                        peripheral.originalReference.setNotifyValue(true, for: peripheral.characteristicHandles.identifyWriteChar)
+                        if bleManager.trackingStarted[peripheral.id]{
+                            peripheral.originalReference.setNotifyValue(true, for: peripheral.characteristicHandles.identifyWriteChar)
+                        }
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in // detect app going to foreground
                     bleManager.backgroundFlag = false
                     for peripheral in bleManager.connectedPeripherals{
+                        if bleManager.trackingStarted[peripheral.id]{
                         peripheral.originalReference.setNotifyValue(false, for: peripheral.characteristicHandles.identifyWriteChar)
+                        }
                     }
                 }
-                Section{
+                Section{ // Enable Notifications Button
                     Button(action: {
-                            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { success, error in
+                            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound, .providesAppNotificationSettings]) { success, error in
                                 if success {
-                                    print("All set!")
-                                    print("notification center value is: \(UNUserNotificationCenter.current().description)")
+                                    print("Notifications Enabled!")
                                     notificationsEnabled = true
                                 } else if let error = error {
                                     print(error.localizedDescription)
@@ -178,7 +188,13 @@ struct ContentView: View {
                             .cornerRadius(8)
                             .foregroundColor(Color.white)
                     })
-                }
+                        .onAppear{
+                            let center = UNUserNotificationCenter.current()
+                            center.getNotificationSettings{ settings in
+                                guard settings.authorizationStatus == .authorized else { notificationsEnabled = false; return }
+                            }
+                        }
+                } // End Enable Notifications Button
                 
                 HStack{
                     //NFC Config Section with code below
@@ -302,6 +318,11 @@ struct ContentView: View {
                         Text("  Battery   |    Name    |    In Range    |    Bracelet On")
                             .padding()
                     }
+                    /*List{
+                        ForEach(bleManager.contentViewChildList!.kids) { kid in
+                            ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
+                        }
+                    }*/
                     List{
                         ForEach(viewModel.kids) { kid in
                             ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
@@ -312,6 +333,7 @@ struct ContentView: View {
                 
                 Spacer()
             }.background(Color.white.edgesIgnoringSafeArea(.all))
+                        
         }
     }
     
@@ -337,9 +359,11 @@ struct ContentView: View {
         bleManager.connectedPeripherals[kidIndex].originalReference.readRSSI()
         let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "", peripheral: bleManager.connectedPeripherals[kidIndex])
         bleManager.connectedPeripherals[kidIndex].braceletInfo.kidName = text
+        //bleManager.contentViewChildList?.kids.append(newKid)
         viewModel.kids.append(newKid)
         text = ""
     }
+
     
 }
 
@@ -660,17 +684,23 @@ struct nfcButton : UIViewRepresentable {
                 }
                 print("Value read from NFC: \(payload)")
                 self.data = payload
-            self.bleManagerCopy2?.scanAndConnect(read_uuid: self.data)
+            self.bleManagerCopy2?.scanAndConnect(read_uuid: self.data, disconnected: false)
         }
     }
 }
 
 
-struct ContentView_Previews: PreviewProvider {
+/* New implementation breaks previews, I don't care enough to fix it - Eric
+ struct ContentView_Previews: PreviewProvider {
+    var viewModel = ChildViewModel()
+    var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
+    init(){
+        bleManager.setChildList(list: viewModel)
+    }
     static var previews: some View {
-        ContentView()
+        ContentView(viewModel: , bleManager: )
             .padding()
     }
-}
+}*/
 
 
