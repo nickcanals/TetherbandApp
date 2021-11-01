@@ -12,6 +12,9 @@
 		22510C3226DC8B050053698D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 22510C3126DC8B050053698D /* Assets.xcassets */; };
 		22510C3526DC8B050053698D /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 22510C3426DC8B050053698D /* Preview Assets.xcassets */; };
 		2261871426F171A8009D7AE7 /* ChildListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2261871326F171A8009D7AE7 /* ChildListView.swift */; };
+		C564BA3A272635FC006675AB /* hoobastank_running_away.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = C564BA39272635FC006675AB /* hoobastank_running_away.mp3 */; };
+		C59C119D27208B540077B43D /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59C119C27208B540077B43D /* Logger.swift */; };
+		C59C119F272096040077B43D /* LoggerFuncs.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59C119E272096040077B43D /* LoggerFuncs.swift */; };
 		C5D8F2E72713920E0003FED7 /* BLEManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D8F2E62713920E0003FED7 /* BLEManager.swift */; };
 /* End PBXBuildFile section */
 
@@ -24,6 +27,9 @@
 		22510C3626DC8B050053698D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2261871326F171A8009D7AE7 /* ChildListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChildListView.swift; sourceTree = "<group>"; };
 		229FF2D126EFB27200701448 /* Tether.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tether.entitlements; sourceTree = "<group>"; };
+		C564BA39272635FC006675AB /* hoobastank_running_away.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = hoobastank_running_away.mp3; sourceTree = "<group>"; };
+		C59C119C27208B540077B43D /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		C59C119E272096040077B43D /* LoggerFuncs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggerFuncs.swift; sourceTree = "<group>"; };
 		C5D8F2E62713920E0003FED7 /* BLEManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BLEManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -57,6 +63,7 @@
 		22510C2C26DC8B000053698D /* Tether */ = {
 			isa = PBXGroup;
 			children = (
+				C564BA39272635FC006675AB /* hoobastank_running_away.mp3 */,
 				C5D8F2E62713920E0003FED7 /* BLEManager.swift */,
 				229FF2D126EFB27200701448 /* Tether.entitlements */,
 				22510C2D26DC8B000053698D /* TetherApp.swift */,
@@ -65,6 +72,8 @@
 				22510C3126DC8B050053698D /* Assets.xcassets */,
 				22510C3626DC8B050053698D /* Info.plist */,
 				22510C3326DC8B050053698D /* Preview Content */,
+				C59C119C27208B540077B43D /* Logger.swift */,
+				C59C119E272096040077B43D /* LoggerFuncs.swift */,
 			);
 			path = Tether;
 			sourceTree = "<group>";
@@ -134,6 +143,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C564BA3A272635FC006675AB /* hoobastank_running_away.mp3 in Resources */,
 				22510C3526DC8B050053698D /* Preview Assets.xcassets in Resources */,
 				22510C3226DC8B050053698D /* Assets.xcassets in Resources */,
 			);
@@ -146,6 +156,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C59C119D27208B540077B43D /* Logger.swift in Sources */,
+				C59C119F272096040077B43D /* LoggerFuncs.swift in Sources */,
 				22510C3026DC8B000053698D /* ContentView.swift in Sources */,
 				C5D8F2E72713920E0003FED7 /* BLEManager.swift in Sources */,
 				22510C2E26DC8B000053698D /* TetherApp.swift in Sources */,

@@ -7,6 +7,9 @@
 
 import SwiftUI
 import CoreNFC
+import BackgroundTasks
+import AVKit
+import UserNotifications
 
 //Struct and Object for Child List 
 struct Child: Identifiable {
@@ -15,6 +18,7 @@ struct Child: Identifiable {
     let name: String
     let inRange: String
     let wearing: String
+    var peripheral: Peripheral
 }
 
 class ChildViewModel: ObservableObject {
@@ -38,13 +42,24 @@ struct ContentView: View {
     
     //Child List Variables
     @StateObject var viewModel = ChildViewModel()
-    //@State var childListData = ""
+    //var viewModel: ChildViewModel // initialized at top level of app in TetherApp.swift to allow list view of children to update properly on ble reconnect after disconnect
+    @State var inputName = false
     @State var text = ""
     @State var listFlag = false
     
+    @State var logText = ""
     
-    @ObservedObject var bleManager = BLEManager()
-     
+    @State var outOfRangeAudio: AVAudioPlayer! // Was used with the 
+    @State var notificationsEnabled = true
+    
+    @ObservedObject var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
+    //@ObservedObject var bleManager: BLEManager // initialized at top level of app in TetherApp.swift
+    
+    /*init(viewModel: ChildViewModel, bleManager: BLEManager){
+        self.viewModel = viewModel
+        self.bleManager = bleManager
+    }*/
+    
     var body: some View {
         NavigationView{
             VStack{
@@ -136,7 +151,50 @@ struct ContentView: View {
                     .cornerRadius(12)
                     .animation(.spring())
                 }
-                
+                .navigationBarTitle("")
+                .navigationBarHidden(true)
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in // detect app going to background
+                    bleManager.backgroundFlag = true // controls behavior of distance tracking timers
+                    for peripheral in bleManager.connectedPeripherals{
+                        if bleManager.trackingStarted[peripheral.id]{
+                            peripheral.originalReference.setNotifyValue(true, for: peripheral.characteristicHandles.identifyWriteChar)
+                        }
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in // detect app going to foreground
+                    bleManager.backgroundFlag = false
+                    for peripheral in bleManager.connectedPeripherals{
+                        if bleManager.trackingStarted[peripheral.id]{
+                        peripheral.originalReference.setNotifyValue(false, for: peripheral.characteristicHandles.identifyWriteChar)
+                        }
+                    }
+                }
+                Section{ // Enable Notifications Button
+                    Button(action: {
+                            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound, .providesAppNotificationSettings]) { success, error in
+                                if success {
+                                    print("Notifications Enabled!")
+                                    notificationsEnabled = true
+                                } else if let error = error {
+                                    print(error.localizedDescription)
+                                }
+                    }}, label: {
+                        Text("Enable Notifications")
+                            .bold()
+                            .frame(width: notificationsEnabled ? 0 : 150,
+                                   height: notificationsEnabled ? 0 : 50,
+                                   alignment: .center)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                            .foregroundColor(Color.white)
+                    })
+                        .onAppear{
+                            let center = UNUserNotificationCenter.current()
+                            center.getNotificationSettings{ settings in
+                                guard settings.authorizationStatus == .authorized else { notificationsEnabled = false; return }
+                            }
+                        }
+                } // End Enable Notifications Button
                 
                 HStack{
                     //NFC Config Section with code below
@@ -157,20 +215,20 @@ struct ContentView: View {
                     })
                 }
                 
-                Text(data).padding().foregroundColor(Color.black)
+                //Text(data).padding().foregroundColor(Color.black)
                 
                 HStack{
-                   // Button(action: {self.bleManager.scanAndConnect()},
-                     //   label: {
-                       //     Text("BLE Connect")
-                         //       .bold()
-                           //     .frame(width: 150,
-                             //          height: 50,
-                               //        alignment: .center)
-                                //.background(Color.blue)
-                                //.cornerRadius(8)
-                                //.foregroundColor(Color.white)
-                    //})
+                    Button(action: {self.bleManager.scanAndConnect()},
+                        label: {
+                            Text("BLE Connect")
+                                .bold()
+                                .frame(width: 150,
+                                       height: 50,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
                     //NavigationLink(destination: ChildListView()) {
                       //              Text("Child List")
                         //                .bold()
@@ -206,9 +264,38 @@ struct ContentView: View {
                     }
                 }
                 
-                Spacer()
+                TextField("Current Tested Distance: ", text: $logText).background(Color.black).padding()
+                Button(action: { print(bleManager.log.addDate(message: "DISTANCE_MARKER:\(logText)"), to: &bleManager.logFilePath!)
+                }, label: {
+                        Text("Write Distance Marker to Log")
+                            .bold()
+                            .frame(width: 250,
+                                   height: 40,
+                                   alignment: .center)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                            .foregroundColor(Color.white)
+                })
+                
+                //Spacer()
                 
                 VStack{
+                    //Text("Battery level is: \(String(bleManager.connectedPeripherals[0].braceletInfo.rssi))").padding()
+                    /*Text(bleManager.batteryLevelUpdated[0] ? "Connected to bracelet name: \(bleManager.connectedPeripherals[0].name)" : "")
+                    Text(bleManager.batteryLevelUpdated[0] ? "Battery level is: \(String(bleManager.connectedPeripherals[0].braceletInfo.batteryLevel))" : "No connected Bracelets yet.").padding()
+                    Text(bleManager.trackingStarted[0] ? "Current distance is \(bleManager.connectedPeripherals[0].braceletInfo.currentDistanceText)" : "")
+                    
+                    Button(action: {bleManager.connectedPeripherals[0].originalReference.readRSSI()}, label: {
+                        Text("Read Distance")
+                            .bold()
+                            .frame(width: 250,
+                                   height: 40,
+                                   alignment: .center)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                            .foregroundColor(Color.white)
+                    })*/
+                    
                     Section(header: Text("")) {
                         TextField("Childs Name...", text: $text)
                             .padding()
@@ -225,26 +312,34 @@ struct ContentView: View {
                                     .foregroundColor(Color.white)
                         })
                         
-                        Text("  Battery   |    Name    |    RSSI Value   |   |")
+                        //Text("  Battery   |    Name    |    RSSI Value   |   |")
+                            //.padding()
+                        Text(inputName ? "\nPlease input child's name." : "")
+                        Text("  Battery   |    Name    |    In Range    |    Bracelet On")
                             .padding()
-                        
-                        //Text("  Battery   |    Name    |    In Range    |    Bracelet On")
-                          //  .padding()
                     }
+                    /*List{
+                        ForEach(bleManager.contentViewChildList!.kids) { kid in
+                            ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
+                        }
+                    }*/
                     List{
                         ForEach(viewModel.kids) { kid in
-                            ChildRow(name: kid.name, range: kid.inRange, wear: kid.wearing, rSSI: kid.childRSSI)
+                            ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
                         }
                     }
-                }.background(Color.black)
+                }
+                .background(Color.black)
                 
                 Spacer()
             }.background(Color.white.edgesIgnoringSafeArea(.all))
+                        
         }
     }
+    
     func rssiGetter() -> Int{
         if(listFlag == true){
-            let rssiInt = self.bleManager.scannedPeripherals[0].rssi
+            let rssiInt = self.bleManager.connectedPeripherals[0].rssi
             return rssiInt
         }
         else{
@@ -253,14 +348,23 @@ struct ContentView: View {
     }
     
     func tryToAdd() {
-        //guard text.trimmingCharacters(in: .whitespaces).isEmpty else {
-        //    return
-        //}
-
-        let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "")
+        guard !text.isEmpty else {
+            inputName = true
+            return
+        }
+        if inputName{
+            inputName = false
+        }
+        let kidIndex = bleManager.connectedPeripherals.count-1
+        bleManager.connectedPeripherals[kidIndex].originalReference.readRSSI()
+        let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "", peripheral: bleManager.connectedPeripherals[kidIndex])
+        bleManager.connectedPeripherals[kidIndex].braceletInfo.kidName = text
+        //bleManager.contentViewChildList?.kids.append(newKid)
         viewModel.kids.append(newKid)
         text = ""
     }
+
+    
 }
 
 //Color Dropdown Code
@@ -359,7 +463,7 @@ struct ChildRow: View {
     let name: String
     let range: String
     let wear: String
-    let rSSI: Int
+    let distance: String
     
     var body: some View {
         HStack{
@@ -375,7 +479,7 @@ struct ChildRow: View {
                 .minimumScaleFactor(1.0)
                 .frame(maxWidth: .infinity)
             Text("|")
-            Text("  \(rSSI)")
+            Text("  \(distance)")
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
@@ -580,18 +684,23 @@ struct nfcButton : UIViewRepresentable {
                 }
                 print("Value read from NFC: \(payload)")
                 self.data = payload
-            self.bleManagerCopy2?.scanAndConnect(read_uuid: self.data)
+            self.bleManagerCopy2?.scanAndConnect(read_uuid: self.data, disconnected: false)
         }
     }
 }
 
 
-
-struct ContentView_Previews: PreviewProvider {
+/* New implementation breaks previews, I don't care enough to fix it - Eric
+ struct ContentView_Previews: PreviewProvider {
+    var viewModel = ChildViewModel()
+    var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
+    init(){
+        bleManager.setChildList(list: viewModel)
+    }
     static var previews: some View {
-        ContentView()
+        ContentView(viewModel: , bleManager: )
             .padding()
     }
-}
+}*/
 
 
