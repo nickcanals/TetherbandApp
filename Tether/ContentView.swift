@@ -52,6 +52,8 @@ struct ContentView: View {
     @State var outOfRangeAudio: AVAudioPlayer! // Was used with the 
     @State var notificationsEnabled = true
     
+    var num = 1
+    
     @ObservedObject var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
     //@ObservedObject var bleManager: BLEManager // initialized at top level of app in TetherApp.swift
     
@@ -240,7 +242,7 @@ struct ContentView: View {
                                     //    .foregroundColor(Color.white)
                     //}
                     
-                    Button(action: {alarmToggle.toggle()},
+                    Button(action: {alarmToggle.toggle(); bleManager.sendEmergencyAlert(start: alarmToggle)},
                         label: {
                             Text("Emergency Alarm")
                                 .bold()
@@ -256,6 +258,7 @@ struct ContentView: View {
                         Text("ALARRMS TRIGGERED")
                             .padding()
                             .foregroundColor(Color.black)
+                        
                     }
                     else{
                         Text("ALARMS ARE OFF")
@@ -355,11 +358,13 @@ struct ContentView: View {
         if inputName{
             inputName = false
         }
+        var trackStart = 1
         let kidIndex = bleManager.connectedPeripherals.count-1
         bleManager.connectedPeripherals[kidIndex].originalReference.readRSSI()
         let newKid = Child(childRSSI: rssiGetter(), name: text, inRange: "", wearing: "", peripheral: bleManager.connectedPeripherals[kidIndex])
         bleManager.connectedPeripherals[kidIndex].braceletInfo.kidName = text
         //bleManager.contentViewChildList?.kids.append(newKid)
+        bleManager.connectedPeripherals[kidIndex].originalReference.writeValue(Data(bytes: &trackStart, count: 1), for: bleManager.connectedPeripherals[kidIndex].characteristicHandles.identifyWriteChar, type: .withoutResponse)
         viewModel.kids.append(newKid)
         text = ""
     }
