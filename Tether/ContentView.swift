@@ -173,7 +173,7 @@ struct ContentView: View {
                 }
                 Section{ // Enable Notifications Button
                     Button(action: {
-                            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound, .providesAppNotificationSettings]) { success, error in
+                            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound, .providesAppNotificationSettings, .criticalAlert]) { success, error in
                                 if success {
                                     print("Notifications Enabled!")
                                     notificationsEnabled = true
