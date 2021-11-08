@@ -42,25 +42,19 @@ struct ContentView: View {
     
     //Child List Variables
     @StateObject var viewModel = ChildViewModel()
-    //var viewModel: ChildViewModel // initialized at top level of app in TetherApp.swift to allow list view of children to update properly on ble reconnect after disconnect
+    
     @State var inputName = false
     @State var text = ""
     @State var listFlag = false
     
     @State var logText = ""
     
-    @State var outOfRangeAudio: AVAudioPlayer! // Was used with the 
+    @State var outOfRangeAudio: AVAudioPlayer!
     @State var notificationsEnabled = true
     
     var num = 1
     
     @ObservedObject var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
-    //@ObservedObject var bleManager: BLEManager // initialized at top level of app in TetherApp.swift
-    
-    /*init(viewModel: ChildViewModel, bleManager: BLEManager){
-        self.viewModel = viewModel
-        self.bleManager = bleManager
-    }*/
     
     var body: some View {
         NavigationView{
@@ -266,38 +260,34 @@ struct ContentView: View {
                             .foregroundColor(Color.black)
                     }
                 }
-                
-                TextField("Current Tested Distance: ", text: $logText).background(Color.black).padding()
-                Button(action: { print(bleManager.log.addDate(message: "DISTANCE_MARKER:\(logText)"), to: &bleManager.logFilePath!)
-                }, label: {
-                        Text("Write Distance Marker to Log")
-                            .bold()
-                            .frame(width: 250,
-                                   height: 40,
-                                   alignment: .center)
-                            .background(Color.blue)
-                            .cornerRadius(8)
-                            .foregroundColor(Color.white)
-                })
-                
+                VStack{
+                    TextField("Current Tested Distance: ", text: $logText).background(Color.black).padding(3)
+                    Button(action: { print(bleManager.log.addDate(message: "DISTANCE_MARKER:\(logText)"), to: &bleManager.logFilePath!)
+                    }, label: {
+                            Text("Write Distance Marker to Log")
+                                .bold()
+                                .frame(width: 250,
+                                       height: 40,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    }).padding()
+                    Button(action: { bleManager.powerOffBracelets()
+                    }, label: {
+                            Text("Shut Down all Connected Bracelets")
+                                .bold()
+                                .frame(width: 250,
+                                       height: 40,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+                }
                 //Spacer()
                 
                 VStack{
-                    //Text("Battery level is: \(String(bleManager.connectedPeripherals[0].braceletInfo.rssi))").padding()
-                    /*Text(bleManager.batteryLevelUpdated[0] ? "Connected to bracelet name: \(bleManager.connectedPeripherals[0].name)" : "")
-                    Text(bleManager.batteryLevelUpdated[0] ? "Battery level is: \(String(bleManager.connectedPeripherals[0].braceletInfo.batteryLevel))" : "No connected Bracelets yet.").padding()
-                    Text(bleManager.trackingStarted[0] ? "Current distance is \(bleManager.connectedPeripherals[0].braceletInfo.currentDistanceText)" : "")
-                    
-                    Button(action: {bleManager.connectedPeripherals[0].originalReference.readRSSI()}, label: {
-                        Text("Read Distance")
-                            .bold()
-                            .frame(width: 250,
-                                   height: 40,
-                                   alignment: .center)
-                            .background(Color.blue)
-                            .cornerRadius(8)
-                            .foregroundColor(Color.white)
-                    })*/
                     
                     Section(header: Text("")) {
                         TextField("Childs Name...", text: $text)
@@ -328,7 +318,7 @@ struct ContentView: View {
                     }*/
                     List{
                         ForEach(viewModel.kids) { kid in
-                            ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
+                            ChildRow(name: kid.name, battery: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.batteryLevel) : ""), range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
                         }
                     }
                 }
@@ -466,6 +456,7 @@ struct DropDown : View {
 //Child List Stuff Here Too
 struct ChildRow: View {
     let name: String
+    let battery: String
     let range: String
     let wear: String
     let distance: String
@@ -476,7 +467,11 @@ struct ChildRow: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 30, height: 30)
-            Text("  25%  ")
+            Text("\(battery)%  ")
+                .fontWeight(.semibold)
+                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
+                .minimumScaleFactor(1.0)
+                .frame(maxWidth: .infinity)
             Text("|")
             Text("  " + name + "  ")
                 .fontWeight(.semibold)
