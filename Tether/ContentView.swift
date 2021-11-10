@@ -190,7 +190,7 @@ struct ContentView: View {
                                 guard settings.authorizationStatus == .authorized else { notificationsEnabled = false; return }
                             }
                         }
-                } // End Enable Notifications Button
+                 // End Enable Notifications Button
                 
                 HStack{
                     //NFC Config Section with code below
@@ -247,7 +247,7 @@ struct ContentView: View {
                                 .cornerRadius(8)
                                 .foregroundColor(Color.white)
                     })
-                    
+                }
                     if alarmToggle{
                         Text("ALARRMS TRIGGERED")
                             .padding()
@@ -261,7 +261,7 @@ struct ContentView: View {
                     }
                 }
                 VStack{
-                    TextField("Current Tested Distance: ", text: $logText).background(Color.black).padding(3)
+                    /*TextField("Current Tested Distance: ", text: $logText).background(Color.black).padding(3)
                     Button(action: { print(bleManager.log.addDate(message: "DISTANCE_MARKER:\(logText)"), to: &bleManager.logFilePath!)
                     }, label: {
                             Text("Write Distance Marker to Log")
@@ -272,7 +272,7 @@ struct ContentView: View {
                                 .background(Color.blue)
                                 .cornerRadius(8)
                                 .foregroundColor(Color.white)
-                    }).padding()
+                    }).padding()*/
                     Button(action: { bleManager.powerOffBracelets()
                     }, label: {
                             Text("Shut Down all Connected Bracelets")
