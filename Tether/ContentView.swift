@@ -209,82 +209,13 @@ struct ContentView: View {
                                 .cornerRadius(8)
                                 .foregroundColor(Color.white)
                     })
+                 }
+                
+                Spacer()
+                
+               
                 }
                 
-                //Text(data).padding().foregroundColor(Color.black)
-                
-                HStack{
-                    Button(action: {self.bleManager.scanAndConnect()},
-                        label: {
-                            Text("BLE Connect")
-                                .bold()
-                                .frame(width: 150,
-                                       height: 50,
-                                       alignment: .center)
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                                .foregroundColor(Color.white)
-                    })
-                    //NavigationLink(destination: ChildListView()) {
-                      //              Text("Child List")
-                        //                .bold()
-                          //              .frame(width: 150,
-                            //                   height: 50,
-                              //                 alignment: .center)
-                                //        .background(Color.purple)
-                                  //      .cornerRadius(8)
-                                    //    .foregroundColor(Color.white)
-                    //}
-                    
-                    Button(action: {alarmToggle.toggle(); bleManager.sendEmergencyAlert(start: alarmToggle)},
-                        label: {
-                            Text("Emergency Alarm")
-                                .bold()
-                                .frame(width: 150,
-                                       height: 50,
-                                       alignment: .center)
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                                .foregroundColor(Color.white)
-                    })
-                }
-                    if alarmToggle{
-                        Text("ALARRMS TRIGGERED")
-                            .padding()
-                            .foregroundColor(Color.black)
-                        
-                    }
-                    else{
-                        Text("ALARMS ARE OFF")
-                            .padding()
-                            .foregroundColor(Color.black)
-                    }
-                }
-                VStack{
-                    /*TextField("Current Tested Distance: ", text: $logText).background(Color.black).padding(3)
-                    Button(action: { print(bleManager.log.addDate(message: "DISTANCE_MARKER:\(logText)"), to: &bleManager.logFilePath!)
-                    }, label: {
-                            Text("Write Distance Marker to Log")
-                                .bold()
-                                .frame(width: 250,
-                                       height: 40,
-                                       alignment: .center)
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                                .foregroundColor(Color.white)
-                    }).padding()*/
-                    Button(action: { bleManager.powerOffBracelets()
-                    }, label: {
-                            Text("Shut Down all Connected Bracelets")
-                                .bold()
-                                .frame(width: 250,
-                                       height: 40,
-                                       alignment: .center)
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                                .foregroundColor(Color.white)
-                    })
-                }
                 //Spacer()
                 
                 VStack{
@@ -309,7 +240,7 @@ struct ContentView: View {
                             //.padding()
                         Text(inputName ? "\nPlease input child's name." : "")
                         Text("  Battery   |    Name    |    In Range    |    Bracelet On")
-                            .padding()
+                            //.padding()
                     }
                     /*List{
                         ForEach(bleManager.contentViewChildList!.kids) { kid in
@@ -318,13 +249,69 @@ struct ContentView: View {
                     }*/
                     List{
                         ForEach(viewModel.kids) { kid in
-                            ChildRow(name: kid.name, battery: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.batteryLevel) : ""), range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
+                            ChildRow(name: kid.name, battery: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.batteryLevel) : ""), range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : ""),  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
                         }
                     }
-                }
-                .background(Color.black)
+                    
+                    Button(action: { bleManager.powerOffBracelets()
+                    }, label: {
+                            Text("Disconnect Bracelets")
+                                .bold()
+                                .frame(width: 250,
+                                       height: 40,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    }).padding()
+                    
+                }.background(Color.black)
+                
+                //Spacer()
+                
+                /*VStack{
+                    Button(action: { bleManager.powerOffBracelets()
+                    }, label: {
+                            Text("Disconnect Bracelets")
+                                .bold()
+                                .frame(width: 250,
+                                       height: 40,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+                }.frame(maxWidth: .infinity).background(Color.black)
+                */
                 
                 Spacer()
+                
+                HStack{
+                    Button(action: {alarmToggle.toggle(); bleManager.sendEmergencyAlert(start: alarmToggle)},
+                        label: {
+                            Text("Emergency Alarm")
+                                .bold()
+                                .frame(width: 150,
+                                       height: 50,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+            
+                    if alarmToggle{
+                        Text("ALARRMS TRIGGERED")
+                            .padding()
+                            .foregroundColor(Color.black)
+                        
+                    }
+                    else{
+                        Text("ALARMS ARE OFF")
+                            .padding()
+                            .foregroundColor(Color.black)
+                    }
+                }
+                
             }.background(Color.white.edgesIgnoringSafeArea(.all))
                         
         }
@@ -479,12 +466,12 @@ struct ChildRow: View {
                 .minimumScaleFactor(1.0)
                 .frame(maxWidth: .infinity)
             Text("|")
-            Text("  \(distance)")
-                .fontWeight(.semibold)
-                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
-                .minimumScaleFactor(1.0)
-                .frame(maxWidth: .infinity)
-            Text("|")
+            //Text("  \(distance)")
+              //  .fontWeight(.semibold)
+                //.lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
+                //.minimumScaleFactor(1.0)
+                //.frame(maxWidth: .infinity)
+            //Text("|")
             Text(range)
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
