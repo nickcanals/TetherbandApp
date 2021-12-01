@@ -94,9 +94,6 @@ class TetherbandUUIDS{
         return allServices
     }
     
-    /*func copyIdentifyChar(identifyChar: CBUUID){
-        self.identifyChar = identifyChar
-    }*/
 }
 
 
@@ -643,17 +640,4 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         debugString += "--"
         return debugString
     }
-    
-    /*// start scanning for devices advertising service matching custom UUID variable. This is the value that the NFC tag will send to the iphone.
-    func startScan(){
-        print("Starting scan")
-        scanAndConnectFlag = false
-        localCentral.scanForPeripherals(withServices: customUUID, options: nil)
-    }
-    
-    // stop scanning
-    func stopScan(){
-        print("Stopped scan")
-        localCentral.stopScan()
-    }*/
 }

@@ -303,7 +303,7 @@ struct ContentView: View {
                         })
                         
                         Text(inputName ? "\nPlease input child's name." : "")
-                        Text("  Battery   |    Name    |    In Range    |    Bracelet On")
+                        Text(" Tracking  |   Battery   |    Name    |    In Range    |    Worn")
                             //.padding()
                     }
 
@@ -313,7 +313,7 @@ struct ContentView: View {
                         }
                     }
                     
-                    Button(action: { bleManager.powerOffBracelets()
+                    Button(action: { disconnectAllBracelets()
                     }, label: {
                             Text("Disconnect Bracelets")
                                 .bold()
@@ -519,7 +519,8 @@ struct ChildRow: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 30, height: 30)
-            Text("\(battery)%  ")
+            Text("   |")
+            Text(" \(battery)%  ")
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
