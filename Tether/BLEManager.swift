@@ -8,6 +8,7 @@
 import Foundation
 import CoreBluetooth
 import UserNotifications
+import SwiftUI
 
 struct Peripheral: Identifiable{
     let id: Int
@@ -41,6 +42,8 @@ class TetherbandInfo{
     var sampleRssiTimer: DispatchSourceTimer?
     var stopSamplingTimer: DispatchSourceTimer?
     var refreshDistanceTimer: DispatchSourceTimer?
+    var rangeColor: Color
+    var wornColor: Color
     
     
     init(){
@@ -53,6 +56,9 @@ class TetherbandInfo{
         self.currentDistanceNum = 0.0
         self.kidName = ""
         self.disconnected = false
+        self.rangeColor = Color.green
+        self.wornColor = Color.green
+        
     }
 }
 
@@ -100,6 +106,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var connectedPeripherals = [Peripheral]()
     @Published var batteryLevelUpdated: [Bool] = [false]
     @Published var trackingStarted: [Bool] = [false]
+    @Published var trackedFlag: [Bool] = [false]
     @Published var backgroundFlag = false // content view flips this to true when the user switches to another app or locks their phone. Allows distance to keep tracking in background
     
     var currentIdentifyUUID: String! // unique UUID value read from the NFC tag
@@ -114,6 +121,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     var outOfRangeCount = 0 // used to schedule notifications when bracelet is out of range
     
     var contentViewChildList: ChildViewModel? // have to store a reference to child view list from content view so we can delete/add entries on ble events
+  
     
     init(logger:Logger){
         super.init()
@@ -202,6 +210,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     if connectedPeripherals.count > 1{
                         batteryLevelUpdated.append(false)
                         trackingStarted.append(false)// increase the size of flag array by one
+                        trackedFlag.append(false)
                     }
                     peripheral.discoverServices(tetherServices)
                     //print(log.addDate(message: "All services and characteristics setup successfully"), to: &logFilePath!)
@@ -338,12 +347,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     if Int(firstByte) == 2{ // bracelet removed
                         print("BRACELET ON")
                         connectedPeripheral.braceletInfo.braceletOn = true
+                        connectedPeripheral.braceletInfo.wornColor = Color.green
                         trackingStarted[connectedPeripheral.id] = true // trigger UI update
                         create_notification(type: "put their bracelet on!", peripheral: connectedPeripheral)
                     }
                     else if Int(firstByte) == 3{ // bracelet removed
                         print("BRACELET REMOVED")
                         connectedPeripheral.braceletInfo.braceletOn = false
+                        connectedPeripheral.braceletInfo.wornColor = Color.red
                         trackingStarted[connectedPeripheral.id] = true // trigger UI update
                         create_notification(type: "removed their bracelet!", peripheral: connectedPeripheral)
                     }
@@ -428,6 +439,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     //print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),Updating_Distance,RSSI_is:\(rssi)"), to: &logFilePath!)
                     if updateDistance(rssi: rssi, txPower: Int(txPower), currentPeripheral: currentPeripheral){ // still in range
                         trackingStarted[currentPeripheralIndex] = true // let the UI know we have started tracking
+                        trackedFlag[currentPeripheralIndex] = !trackedFlag[currentPeripheralIndex]
                         
                         if outOfRangeCount != 0{
                             outOfRangeCount = 0
@@ -444,7 +456,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         currentPeripheral.braceletInfo.refreshDistanceTimer?.resume()
                     }
                     else{ // out of range
+                        currentPeripheral.braceletInfo.inRange = false
                         trackingStarted[currentPeripheralIndex] = true // let the UI know we have started tracking
+                        trackedFlag[currentPeripheralIndex] = !trackedFlag[currentPeripheralIndex]
                         outOfRangeCount += 1
                         create_notification(type: "Out of Range First", peripheral: currentPeripheral)
                         //print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),FIRST_OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
@@ -457,7 +471,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                                 var rangeFlag = 5
                                 currentPeripheral.originalReference.writeValue(Data(bytes: &rangeFlag, count: 1), for: currentPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
                             }
-                            currentPeripheral.braceletInfo.inRange = false
+                            
                             //print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
                         }
                         
@@ -505,6 +519,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             currentPeripheral.braceletInfo.inRange = false
             print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)*/
             print("Distance of \(distance) mm determined OUT OF RANGE in update distance function")
+            currentPeripheral.braceletInfo.rangeColor = Color.red
             return false
         }
         else{
@@ -513,6 +528,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 currentPeripheral.originalReference.writeValue(Data(bytes: &rangeFlag, count: 1), for: currentPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
             }
             currentPeripheral.braceletInfo.inRange = true
+            currentPeripheral.braceletInfo.rangeColor = Color.green
             //print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),IN_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
             //print("Distance of \(distance) mm determined IN RANGE in update distance function")
             return true

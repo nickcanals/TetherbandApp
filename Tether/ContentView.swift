@@ -33,6 +33,7 @@ struct ContentView: View {
     @State var nfcToggle = true
     @State var nfcWriter = NFCWrite()
     @State var data = ""
+    @State var trackChanger = ""
     
     //Color Dropdown variables
     @State var expand = false
@@ -242,14 +243,10 @@ struct ContentView: View {
                         Text("  Battery   |    Name    |    In Range    |    Bracelet On")
                             //.padding()
                     }
-                    /*List{
-                        ForEach(bleManager.contentViewChildList!.kids) { kid in
-                            ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
-                        }
-                    }*/
+
                     List{
                         ForEach(viewModel.kids) { kid in
-                            ChildRow(name: kid.name, battery: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.batteryLevel) : ""), range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : ""),  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
+                            ChildRow(name: kid.name, battery: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.batteryLevel) : ""), range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : ""),  distance: "false", trackString: (bleManager.trackedFlag[kid.peripheral.id] ? "green_circle" : "blue_circle"))
                         }
                     }
                     
@@ -447,10 +444,11 @@ struct ChildRow: View {
     let range: String
     let wear: String
     let distance: String
+    let trackString: String
     
     var body: some View {
         HStack{
-            Image("Bat_Full")
+            Image(trackString)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 30, height: 30)
@@ -477,7 +475,7 @@ struct ChildRow: View {
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
                 .frame(maxWidth: .infinity)
-                .foregroundColor(Color.green)
+                .foregroundColor(Color.blue)
             Text("|")
                 //.frame(maxWidth: .infinity)
             Text(wear)
@@ -485,7 +483,7 @@ struct ChildRow: View {
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
                 .frame(maxWidth: .infinity)
-                .foregroundColor(Color.green)
+                .foregroundColor(Color.blue)
         }
     }
 }
@@ -675,19 +673,3 @@ struct nfcButton : UIViewRepresentable {
         }
     }
 }
-
-
-/* New implementation breaks previews, I don't care enough to fix it - Eric
- struct ContentView_Previews: PreviewProvider {
-    var viewModel = ChildViewModel()
-    var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
-    init(){
-        bleManager.setChildList(list: viewModel)
-    }
-    static var previews: some View {
-        ContentView(viewModel: , bleManager: )
-            .padding()
-    }
-}*/
-
-
