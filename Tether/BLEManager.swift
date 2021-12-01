@@ -108,6 +108,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var trackingStarted: [Bool] = [false]
     @Published var trackedFlag: [Bool] = [false]
     @Published var backgroundFlag = false // content view flips this to true when the user switches to another app or locks their phone. Allows distance to keep tracking in background
+    @Published var nfcColorNotSelected = false
     
     var currentIdentifyUUID: String! // unique UUID value read from the NFC tag
     var includedServices: TetherbandUUIDS?
@@ -309,6 +310,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             connectedPeripherals[currentPeripheralIndex].UUIDS.capsenseChar = characteristics[1].uuid
             connectedPeripherals[currentPeripheralIndex].characteristicHandles.capsenseReadChar = characteristics[1]
             peripheral.setNotifyValue(true, for: connectedPeripherals[currentPeripheralIndex].characteristicHandles.capsenseReadChar)
+            for connectedPeripheral in connectedPeripherals{
+                if peripheral.isEqual(connectedPeripheral.originalReference){
+                    if(self.nfcColorNotSelected){ // app was killed while bracelets were connected so bracelet needs to flash original blue light instead of team color light
+                        var appKilled: UInt8 = 10
+                        connectedPeripheral.originalReference.writeValue(Data(bytes: &appKilled, count: 1), for: connectedPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
+                    }
+                    else{
+                        var appKilled: UInt8 = 11
+                        connectedPeripheral.originalReference.writeValue(Data(bytes: &appKilled, count: 1), for: connectedPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
+                    }
+                }
+            }
             print("DISCOVERED CUSTOM IDENTIFY SERVICE AND CHARS")
             
         default:
@@ -340,7 +353,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 case connectedPeripheral.UUIDS.identifyChar:
                     if Int(firstByte) == 1{ // background distance notification
                         print("Received Background Distance Notification.")
-                        peripheral.readRSSI()
+                        if(trackingStarted[connectedPeripheral.id]){
+                            peripheral.readRSSI()
+                        }
                     }
                     
                 case connectedPeripheral.UUIDS.capsenseChar: // cap sense alerts here
@@ -498,7 +513,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     // Function taken from Nordic Toolbox for iOS
     func updateDistance(rssi: Int, txPower: Int, currentPeripheral: Peripheral) -> Bool{
     //func updateDistance(rssi: Float, txPower: Int, currentPeripheral: Peripheral) -> Bool{
-        let distance = pow(10, (Double(txPower - rssi) / 19.4)) // exponent values of 4.2 is 15.8 meters, 4.15 is 14.125 meters
+        let distance = pow(10, (Double(txPower - rssi) / 21.5)) // exponent values of 4.2 is 15.8 meters, 4.15 is 14.125 meters
         let distanceUnitVal = Measurement<UnitLength>(value: distance, unit: .millimeters)
         let formatter = MeasurementFormatter()
         let numberFormatter = NumberFormatter()
@@ -507,7 +522,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         formatter.unitOptions = .naturalScale
         currentPeripheral.braceletInfo.currentDistanceText = formatter.string(from: distanceUnitVal)
         currentPeripheral.braceletInfo.currentDistanceNum = distance
-        //print("Bracelet name \(currentPeripheral.deviceName): Formatted distance from update distance function is: \(currentPeripheral.braceletInfo.currentDistanceText)")
+        print("Bracelet name \(currentPeripheral.deviceName): Formatted distance from update distance function is: \(currentPeripheral.braceletInfo.currentDistanceText)")
         
         var rangeFlag = 0
         
@@ -554,9 +569,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         var powerOffFlag = 9
         for connectedPeripheral in connectedPeripherals{
             if trackingStarted[connectedPeripheral.id]{
+                connectedPeripheral.braceletInfo.stopSamplingTimer?.cancel()
+                connectedPeripheral.braceletInfo.refreshDistanceTimer?.cancel()
+                connectedPeripheral.braceletInfo.sampleRssiTimer?.cancel()
                 connectedPeripheral.originalReference.writeValue(Data(bytes: &powerOffFlag, count: 1), for: connectedPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
             }
         }
+        connectedPeripherals.removeAll()
+        trackingStarted.removeAll()
+        trackingStarted.append(false)
     }
     
     // Creates a notification for given type associated with given peripheral

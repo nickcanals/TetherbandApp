@@ -195,7 +195,7 @@ struct ContentView: View {
                 
                 HStack{
                     //NFC Config Section with code below
-                    nfcButton(data: self.$data, bleManagerCopy: bleManager)
+                    nfcButton(data: self.$data, bleManagerCopy: bleManager, colorStr: colorStr)
                         .frame(width: 150, height: 50, alignment: .center)
                         .cornerRadius(8)
                     
@@ -214,10 +214,75 @@ struct ContentView: View {
                 
                 Spacer()
                 
+
                
                 }
-                
+                /*
                 //Spacer()
+=======
+                HStack{
+                    Button(action: {self.bleManager.scanAndConnect()},
+                        label: {
+                            Text("BLE Connect")
+                                .bold()
+                                .frame(width: 150,
+                                       height: 50,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+                    
+                    Button(action: {alarmToggle.toggle(); bleManager.sendEmergencyAlert(start: alarmToggle)},
+                        label: {
+                            Text("Emergency Alarm")
+                                .bold()
+                                .frame(width: 150,
+                                       height: 50,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+                }
+                    if alarmToggle{
+                        Text("ALARRMS TRIGGERED")
+                            .padding()
+                            .foregroundColor(Color.black)
+                        
+                    }
+                    else{
+                        Text("ALARMS ARE OFF")
+                            .padding()
+                            .foregroundColor(Color.black)
+                    }
+                }
+                VStack{
+                    /*TextField("Current Tested Distance: ", text: $logText).background(Color.black).padding(3)
+                    Button(action: { print(bleManager.log.addDate(message: "DISTANCE_MARKER:\(logText)"), to: &bleManager.logFilePath!)
+                    }, label: {
+                            Text("Write Distance Marker to Log")
+                                .bold()
+                                .frame(width: 250,
+                                       height: 40,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    }).padding()*/
+                    Button(action: { disconnectAllBracelets()
+                    }, label: {
+                            Text("Shut Down all Connected Bracelets")
+                                .bold()
+                                .frame(width: 250,
+                                       height: 40,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+                } */
+
                 
                 VStack{
                     
@@ -237,8 +302,6 @@ struct ContentView: View {
                                     .foregroundColor(Color.white)
                         })
                         
-                        //Text("  Battery   |    Name    |    RSSI Value   |   |")
-                            //.padding()
                         Text(inputName ? "\nPlease input child's name." : "")
                         Text("  Battery   |    Name    |    In Range    |    Bracelet On")
                             //.padding()
@@ -343,6 +406,10 @@ struct ContentView: View {
         text = ""
     }
 
+    func disconnectAllBracelets(){
+        viewModel.kids.removeAll()
+        bleManager.powerOffBracelets()
+    }
     
 }
 
@@ -608,6 +675,7 @@ class NFCWrite : NSObject, NFCNDEFReaderSessionDelegate {
 struct nfcButton : UIViewRepresentable {
     @Binding var data : String
     let bleManagerCopy: BLEManager?
+    let colorStr: String?
     
     func makeUIView(context: Context) -> UIButton {
         let button = UIButton()
@@ -622,17 +690,19 @@ struct nfcButton : UIViewRepresentable {
     }
 
     func makeCoordinator() -> nfcButton.Coordinator {
-        return Coordinator(data: $data, bleManagerCopy2: bleManagerCopy!)
+        return Coordinator(data: $data, bleManagerCopy2: bleManagerCopy!, colorStr: colorStr!)
     }
     
     class Coordinator : NSObject, ObservableObject, NFCNDEFReaderSessionDelegate {
         var session : NFCNDEFReaderSession?
         @Binding var data : String
         let bleManagerCopy2: BLEManager?
+        let colorStr: String?
         
-        init(data: Binding<String>, bleManagerCopy2: BLEManager) {
+        init(data: Binding<String>, bleManagerCopy2: BLEManager, colorStr: String) {
             _data = data
             self.bleManagerCopy2 = bleManagerCopy2
+            self.colorStr = colorStr
         }
         
         @objc func beginScan (sender: Any) {
@@ -669,7 +739,14 @@ struct nfcButton : UIViewRepresentable {
                 }
                 print("Value read from NFC: \(payload)")
                 self.data = payload
+            if(colorStr == ""){
+                self.bleManagerCopy2?.nfcColorNotSelected = true
+            }
+            else{
+                self.bleManagerCopy2?.nfcColorNotSelected = false
+            }
             self.bleManagerCopy2?.scanAndConnect(read_uuid: self.data, disconnected: false)
+            
         }
     }
 }
