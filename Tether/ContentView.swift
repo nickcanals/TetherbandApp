@@ -194,7 +194,7 @@ struct ContentView: View {
                 
                 HStack{
                     //NFC Config Section with code below
-                    nfcButton(data: self.$data, bleManagerCopy: bleManager)
+                    nfcButton(data: self.$data, bleManagerCopy: bleManager, colorStr: colorStr)
                         .frame(width: 150, height: 50, alignment: .center)
                         .cornerRadius(8)
                     
@@ -225,16 +225,6 @@ struct ContentView: View {
                                 .cornerRadius(8)
                                 .foregroundColor(Color.white)
                     })
-                    //NavigationLink(destination: ChildListView()) {
-                      //              Text("Child List")
-                        //                .bold()
-                          //              .frame(width: 150,
-                            //                   height: 50,
-                              //                 alignment: .center)
-                                //        .background(Color.purple)
-                                  //      .cornerRadius(8)
-                                    //    .foregroundColor(Color.white)
-                    //}
                     
                     Button(action: {alarmToggle.toggle(); bleManager.sendEmergencyAlert(start: alarmToggle)},
                         label: {
@@ -273,7 +263,7 @@ struct ContentView: View {
                                 .cornerRadius(8)
                                 .foregroundColor(Color.white)
                     }).padding()*/
-                    Button(action: { bleManager.powerOffBracelets()
+                    Button(action: { disconnectAllBracelets()
                     }, label: {
                             Text("Shut Down all Connected Bracelets")
                                 .bold()
@@ -285,7 +275,6 @@ struct ContentView: View {
                                 .foregroundColor(Color.white)
                     })
                 }
-                //Spacer()
                 
                 VStack{
                     
@@ -305,17 +294,11 @@ struct ContentView: View {
                                     .foregroundColor(Color.white)
                         })
                         
-                        //Text("  Battery   |    Name    |    RSSI Value   |   |")
-                            //.padding()
                         Text(inputName ? "\nPlease input child's name." : "")
                         Text("  Battery   |    Name    |    In Range    |    Bracelet On")
                             .padding()
                     }
-                    /*List{
-                        ForEach(bleManager.contentViewChildList!.kids) { kid in
-                            ChildRow(name: kid.name, range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
-                        }
-                    }*/
+
                     List{
                         ForEach(viewModel.kids) { kid in
                             ChildRow(name: kid.name, battery: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.batteryLevel) : ""), range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
@@ -359,6 +342,10 @@ struct ContentView: View {
         text = ""
     }
 
+    func disconnectAllBracelets(){
+        viewModel.kids.removeAll()
+        bleManager.powerOffBracelets()
+    }
     
 }
 
@@ -623,6 +610,7 @@ class NFCWrite : NSObject, NFCNDEFReaderSessionDelegate {
 struct nfcButton : UIViewRepresentable {
     @Binding var data : String
     let bleManagerCopy: BLEManager?
+    let colorStr: String?
     
     func makeUIView(context: Context) -> UIButton {
         let button = UIButton()
@@ -637,17 +625,19 @@ struct nfcButton : UIViewRepresentable {
     }
 
     func makeCoordinator() -> nfcButton.Coordinator {
-        return Coordinator(data: $data, bleManagerCopy2: bleManagerCopy!)
+        return Coordinator(data: $data, bleManagerCopy2: bleManagerCopy!, colorStr: colorStr!)
     }
     
     class Coordinator : NSObject, ObservableObject, NFCNDEFReaderSessionDelegate {
         var session : NFCNDEFReaderSession?
         @Binding var data : String
         let bleManagerCopy2: BLEManager?
+        let colorStr: String?
         
-        init(data: Binding<String>, bleManagerCopy2: BLEManager) {
+        init(data: Binding<String>, bleManagerCopy2: BLEManager, colorStr: String) {
             _data = data
             self.bleManagerCopy2 = bleManagerCopy2
+            self.colorStr = colorStr
         }
         
         @objc func beginScan (sender: Any) {
@@ -684,7 +674,14 @@ struct nfcButton : UIViewRepresentable {
                 }
                 print("Value read from NFC: \(payload)")
                 self.data = payload
+            if(colorStr == ""){
+                self.bleManagerCopy2?.nfcColorNotSelected = true
+            }
+            else{
+                self.bleManagerCopy2?.nfcColorNotSelected = false
+            }
             self.bleManagerCopy2?.scanAndConnect(read_uuid: self.data, disconnected: false)
+            
         }
     }
 }
