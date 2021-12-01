@@ -33,6 +33,7 @@ struct ContentView: View {
     @State var nfcToggle = true
     @State var nfcWriter = NFCWrite()
     @State var data = ""
+    @State var trackChanger = ""
     
     //Color Dropdown variables
     @State var expand = false
@@ -209,10 +210,16 @@ struct ContentView: View {
                                 .cornerRadius(8)
                                 .foregroundColor(Color.white)
                     })
+                 }
+                
+                Spacer()
+                
+
+               
                 }
-                
-                //Text(data).padding().foregroundColor(Color.black)
-                
+                /*
+                //Spacer()
+=======
                 HStack{
                     Button(action: {self.bleManager.scanAndConnect()},
                         label: {
@@ -274,7 +281,8 @@ struct ContentView: View {
                                 .cornerRadius(8)
                                 .foregroundColor(Color.white)
                     })
-                }
+                } */
+
                 
                 VStack{
                     
@@ -296,18 +304,74 @@ struct ContentView: View {
                         
                         Text(inputName ? "\nPlease input child's name." : "")
                         Text("  Battery   |    Name    |    In Range    |    Bracelet On")
-                            .padding()
+                            //.padding()
                     }
 
                     List{
                         ForEach(viewModel.kids) { kid in
-                            ChildRow(name: kid.name, battery: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.batteryLevel) : ""), range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : "") ,  distance: (bleManager.trackingStarted[kid.peripheral.id] ? kid.peripheral.braceletInfo.currentDistanceText : ""))
+                            ChildRow(name: kid.name, battery: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.batteryLevel) : ""), range: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.inRange) : "") , wear: (bleManager.trackingStarted[kid.peripheral.id] ? String(kid.peripheral.braceletInfo.braceletOn) : ""),  distance: "false", trackString: (bleManager.trackedFlag[kid.peripheral.id] ? "green_circle" : "blue_circle"))
                         }
                     }
-                }
-                .background(Color.black)
+                    
+                    Button(action: { bleManager.powerOffBracelets()
+                    }, label: {
+                            Text("Disconnect Bracelets")
+                                .bold()
+                                .frame(width: 250,
+                                       height: 40,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    }).padding()
+                    
+                }.background(Color.black)
+                
+                //Spacer()
+                
+                /*VStack{
+                    Button(action: { bleManager.powerOffBracelets()
+                    }, label: {
+                            Text("Disconnect Bracelets")
+                                .bold()
+                                .frame(width: 250,
+                                       height: 40,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+                }.frame(maxWidth: .infinity).background(Color.black)
+                */
                 
                 Spacer()
+                
+                HStack{
+                    Button(action: {alarmToggle.toggle(); bleManager.sendEmergencyAlert(start: alarmToggle)},
+                        label: {
+                            Text("Emergency Alarm")
+                                .bold()
+                                .frame(width: 150,
+                                       height: 50,
+                                       alignment: .center)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                                .foregroundColor(Color.white)
+                    })
+            
+                    if alarmToggle{
+                        Text("ALARRMS TRIGGERED")
+                            .padding()
+                            .foregroundColor(Color.black)
+                        
+                    }
+                    else{
+                        Text("ALARMS ARE OFF")
+                            .padding()
+                            .foregroundColor(Color.black)
+                    }
+                }
+                
             }.background(Color.white.edgesIgnoringSafeArea(.all))
                         
         }
@@ -447,10 +511,11 @@ struct ChildRow: View {
     let range: String
     let wear: String
     let distance: String
+    let trackString: String
     
     var body: some View {
         HStack{
-            Image("Bat_Full")
+            Image(trackString)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 30, height: 30)
@@ -466,18 +531,18 @@ struct ChildRow: View {
                 .minimumScaleFactor(1.0)
                 .frame(maxWidth: .infinity)
             Text("|")
-            Text("  \(distance)")
-                .fontWeight(.semibold)
-                .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
-                .minimumScaleFactor(1.0)
-                .frame(maxWidth: .infinity)
-            Text("|")
+            //Text("  \(distance)")
+              //  .fontWeight(.semibold)
+                //.lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
+                //.minimumScaleFactor(1.0)
+                //.frame(maxWidth: .infinity)
+            //Text("|")
             Text(range)
                 .fontWeight(.semibold)
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
                 .frame(maxWidth: .infinity)
-                .foregroundColor(Color.green)
+                .foregroundColor(Color.blue)
             Text("|")
                 //.frame(maxWidth: .infinity)
             Text(wear)
@@ -485,7 +550,7 @@ struct ChildRow: View {
                 .lineLimit(/*@START_MENU_TOKEN@*/2/*@END_MENU_TOKEN@*/)
                 .minimumScaleFactor(1.0)
                 .frame(maxWidth: .infinity)
-                .foregroundColor(Color.green)
+                .foregroundColor(Color.blue)
         }
     }
 }
@@ -685,19 +750,3 @@ struct nfcButton : UIViewRepresentable {
         }
     }
 }
-
-
-/* New implementation breaks previews, I don't care enough to fix it - Eric
- struct ContentView_Previews: PreviewProvider {
-    var viewModel = ChildViewModel()
-    var bleManager = BLEManager(logger: Logger(LoggerFuncs(date: false).setLogPath()!))
-    init(){
-        bleManager.setChildList(list: viewModel)
-    }
-    static var previews: some View {
-        ContentView(viewModel: , bleManager: )
-            .padding()
-    }
-}*/
-
-
