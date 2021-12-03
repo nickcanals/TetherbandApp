@@ -110,7 +110,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     var currentIdentifyUUID: String! // unique UUID value read from the NFC tag
     var includedServices: TetherbandUUIDS?
     let NUM_RSSI_SAMPLES = 50 // num of rssi samples to take before averaging.
-    let MAX_DISTANCE: Double = 15000 // given in mm. aka 15m.
+    let MAX_DISTANCE: Double = 1000 // given in mm. aka 15m.
     
     let distanceQueue = DispatchQueue(label: "com.tetherband.distance", qos: .userInteractive, attributes: .concurrent, autoreleaseFrequency: .workItem)
     
@@ -485,13 +485,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         //create_notification(type: "Out of Range First", peripheral: currentPeripheral)
                         //print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),FIRST_OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
                         if outOfRangeCount == 2{
-                            currentPeripheral.braceletInfo.inRange = false
+                            
                             create_notification(type: "Out of Range Real", peripheral: currentPeripheral)
                             NSLog("Added out of range notification")
                             outOfRangeCount = 0
-                         // only send flag to bracelet once and not again until back in range
-                            var rangeFlag = 5
-                            currentPeripheral.originalReference.writeValue(Data(bytes: &rangeFlag, count: 1), for: currentPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
+                            if(currentPeripheral.braceletInfo.inRange){ // if this is true, then it's the first time it has gone out of range so we send flag to bracelet
+                                var rangeFlag = 5
+                                currentPeripheral.originalReference.writeValue(Data(bytes: &rangeFlag, count: 1), for: currentPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
+                            }
+                            currentPeripheral.braceletInfo.inRange = false // change flag to false
                             
                             //print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
                         }
