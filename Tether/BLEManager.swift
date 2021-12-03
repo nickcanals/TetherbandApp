@@ -110,7 +110,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     var currentIdentifyUUID: String! // unique UUID value read from the NFC tag
     var includedServices: TetherbandUUIDS?
     let NUM_RSSI_SAMPLES = 50 // num of rssi samples to take before averaging.
-    let MAX_DISTANCE: Double = 1000 // given in mm. aka 15m.
+    let MAX_DISTANCE: Double = 15000 // given in mm. aka 15m.
     
     let distanceQueue = DispatchQueue(label: "com.tetherband.distance", qos: .userInteractive, attributes: .concurrent, autoreleaseFrequency: .workItem)
     
