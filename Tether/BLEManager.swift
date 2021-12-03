@@ -479,13 +479,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         currentPeripheral.braceletInfo.refreshDistanceTimer?.resume()
                     }
                     else{ // out of range
-                        currentPeripheral.braceletInfo.inRange = false
                         trackingStarted[currentPeripheralIndex] = true // let the UI know we have started tracking
                         trackedFlag[currentPeripheralIndex] = !trackedFlag[currentPeripheralIndex]
                         outOfRangeCount += 1
                         //create_notification(type: "Out of Range First", peripheral: currentPeripheral)
                         //print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),FIRST_OUT_OF_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
                         if outOfRangeCount == 2{
+                            currentPeripheral.braceletInfo.inRange = false
                             create_notification(type: "Out of Range Real", peripheral: currentPeripheral)
                             NSLog("Added out of range notification")
                             outOfRangeCount = 0
@@ -546,10 +546,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         else{
             if(!currentPeripheral.braceletInfo.inRange){ // flag would have been false if coming back from out of range
                 create_notification(type: "In Range", peripheral: currentPeripheral)
+                rangeFlag = 6
+                currentPeripheral.originalReference.writeValue(Data(bytes: &rangeFlag, count: 1), for: currentPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
             }
             currentPeripheral.braceletInfo.inRange = true
-            rangeFlag = 6
-            currentPeripheral.originalReference.writeValue(Data(bytes: &rangeFlag, count: 1), for: currentPeripheral.characteristicHandles.identifyWriteChar, type: .withoutResponse)
+            
             
             currentPeripheral.braceletInfo.rangeColor = Color.green
             //print(log.addDate(message: "Bracelet:\(currentPeripheral.deviceName),IN_RANGE,Formatted_Distance:\(currentPeripheral.braceletInfo.currentDistanceText),Raw_Distance:\(currentPeripheral.braceletInfo.currentDistanceNum)"), to: &logFilePath!)
